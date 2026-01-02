@@ -1,16 +1,30 @@
-// src/controllers/decision.controller.js
-
-const decisionEngine = require("../engines/decision.engine");
-
-exports.makeDecision = (req, res) => {
+exports.decide = async (req, res) => {
   try {
-    const decision = decisionEngine(req.body);
+    const { goal, budget } = req.body;
+
+    if (!goal || !budget) {
+      return res.status(400).json({
+        status: "error",
+        message: "goal and budget are required"
+      });
+    }
+
+    let platform = "meta";
+
+    if (goal === "sales" && budget >= 1000) {
+      platform = "google";
+    }
 
     res.json({
       status: "success",
       engine: "decision",
-      decision
+      decision: {
+        goal,
+        budget,
+        platform
+      }
     });
+
   } catch (error) {
     res.status(500).json({
       status: "error",
