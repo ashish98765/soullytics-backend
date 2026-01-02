@@ -1,26 +1,23 @@
-const express = require("express");
+onst express = require("express");
 const app = express();
-
-// routes import
-const adsRoutes = require("./routes/ads.routes");
-const decisionRoutes = require("./routes/decision.routes");
-
-// port
-const PORT = process.env.PORT || 5000;
 
 // middleware
 app.use(express.json());
 
-// routes connect
+// routes
+const adsRoutes = require("./routes/ads.routes");
+const decisionRoutes = require("./routes/decision.routes");
+
 app.use("/ads", adsRoutes);
 app.use("/decision", decisionRoutes);
 
-// root check
+// root
 app.get("/", (req, res) => {
   res.send("Soullytics backend running");
 });
 
-// server start
+// port
+const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(Server running on port ${PORT});
 });
