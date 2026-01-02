@@ -1,10 +1,8 @@
-// src/routes/decision.routes.js
-
 const express = require("express");
 const router = express.Router();
 
-const { makeDecision } = require("../controllers/decision.controller");
+const { decide } = require("../controllers/decision.controller");
 
-router.post("/decide", makeDecision);
+router.post("/decide", decide);
 
 module.exports = router;
