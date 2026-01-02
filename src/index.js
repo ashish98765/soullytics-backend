@@ -1,21 +1,43 @@
-const express = require("express");
-const healthRoutes = require("./routes/health.routes");
-const adsRoutes = require("./routes/ads.routes");
+exports.createAd = async (req, res) => {
+  try {
+    const { platform, objective, budget, creatives } = req.body;
 
-const app = express();
-const PORT = process.env.PORT || 5000;
+    // 1️⃣ basic validation
+    if (!platform || !objective) {
+      return res.status(400).json({
+        status: "error",
+        message: "platform and objective are required"
+      });
+    }
 
-// middleware
-app.use(express.json());
+    if (budget && budget <= 0) {
+      return res.status(400).json({
+        status: "error",
+        message: "budget must be greater than 0"
+      });
+    }
 
-app.use("/health", healthRoutes);
-app.use("/ads", adsRoutes);
-// test route
-app.get("/", (req, res) => {
-  res.send("Soullytics backend is running");
-});
+    // 2️⃣ validated ad payload
+    const adPayload = {
+      platform,
+      objective,
+      budget: budget || null,
+      creatives: creatives || [],
+      createdAt: new Date().toISOString()
+    };
 
-// server start
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+    // 3️⃣ success response
+    res.status(200).json({
+      status: "success",
+      message: "Ad validated successfully",
+      data: adPayload
+    });
+
+  } catch (error) {
+    res.status(500).json({
+      status: "error",
+      message: "Ad creation failed",
+      error: error.message
+    });
+  }
+};
