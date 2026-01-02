@@ -8,9 +8,11 @@ exports.createAd = async (req, res) => {
 
   if (platform === "meta") {
     result = createMetaAd({ objective, budget });
-  } else if (platform === "google") {
+  } 
+  else if (platform === "google") {
     result = createGoogleAd({ objective, budget });
-  } else {
+  } 
+  else {
     return res.status(400).json({
       status: "error",
       message: "Unsupported platform"
