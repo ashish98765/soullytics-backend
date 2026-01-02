@@ -3,6 +3,7 @@ const app = express();
 
 // routes import
 const adsRoutes = require("./routes/ads.routes");
+const decisionRoutes = require("./routes/decision.routes");
 
 // port
 const PORT = process.env.PORT || 5000;
@@ -12,6 +13,7 @@ app.use(express.json());
 
 // routes connect
 app.use("/ads", adsRoutes);
+app.use("/decision", decisionRoutes);
 
 // root check
 app.get("/", (req, res) => {
