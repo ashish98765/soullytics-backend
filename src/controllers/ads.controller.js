@@ -1,14 +1,9 @@
-// src/controllers/ads.controller.js
+const express = require("express");
+const router = express.Router();
 
-exports.createAd = async (req, res) => {
-  try {
-    res.json({
-      message: "Ad creation engine connected",
-      data: req.body
-    });
-  } catch (error) {
-    res.status(500).json({
-      error: "Ad creation failed"
-    });
-  }
-};
+const { createAd } = require("../controllers/ads.controller");
+
+// POST /ads/create
+router.post("/create", createAd);
+
+module.exports = router;
