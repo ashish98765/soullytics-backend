@@ -5,7 +5,7 @@ const router = express.Router();
 
 const {
   handleSoullytics
-} = require("../controllers/soullytics.controller");
+} = require("../controllers/soullytics.controller.js");
 
 // Single Soullytics entry point
 router.post("/soullytics", handleSoullytics);
