@@ -1,54 +1,65 @@
 // src/engines/decision.engine.js
 
-function decisionEngine({ platform, objective, budget }) {
-  let decision = {
-    platform,
-    objective,
-    budget,
-    strategy: null,
-    creativeAngle: null,
-    riskLevel: null,
-    confidence: null
-  };
+/**
+ * Soullytics Decision Engine
+ * This engine does NOT contain business logic.
+ * It only aggregates results from Ads Codes (1–19).
+ */
 
-  // PLATFORM + OBJECTIVE LOGIC
-  if (platform === "meta") {
-    if (objective === "leads") {
-      decision.strategy = "Lead Form Campaign";
-      decision.creativeAngle = "Trust + Offer";
-      decision.riskLevel = "Medium";
-      decision.confidence = 0.78;
-    } else if (objective === "sales") {
-      decision.strategy = "Conversion Campaign";
-      decision.creativeAngle = "Urgency + Discount";
-      decision.riskLevel = "High";
-      decision.confidence = 0.65;
+class DecisionEngine {
+  constructor() {
+    this.results = [];
+  }
+
+  /**
+   * Register result from any Ads Code
+   */
+  register(engineResult) {
+    this.results.push(engineResult);
+  }
+
+  /**
+   * Resolve final decision based on registered engine results
+   */
+  resolve() {
+    let hasFail = false;
+    let warnings = [];
+    let confidenceSum = 0;
+    let scoreCount = 0;
+
+    for (const result of this.results) {
+      if (result.status === "FAIL") {
+        hasFail = true;
+      }
+
+      if (result.status === "WARNING") {
+        warnings.push(result.message);
+      }
+
+      if (typeof result.score === "number") {
+        confidenceSum += result.score;
+        scoreCount++;
+      }
     }
+
+    const confidence =
+      scoreCount > 0 ? Number((confidenceSum / scoreCount).toFixed(2)) : null;
+
+    return {
+      finalDecision: hasFail ? "DO_NOT_RUN" : "RUN",
+      confidence,
+      warnings,
+      evaluatedEngines: this.results.length,
+      timestamp: new Date().toISOString()
+    };
   }
 
-  if (platform === "google") {
-    if (objective === "sales") {
-      decision.strategy = "Search Intent Campaign";
-      decision.creativeAngle = "Problem → Solution";
-      decision.riskLevel = "Low";
-      decision.confidence = 0.85;
-    } else if (objective === "leads") {
-      decision.strategy = "Search + Display Mix";
-      decision.creativeAngle = "Authority + Proof";
-      decision.riskLevel = "Medium";
-      decision.confidence = 0.72;
-    }
+  /**
+   * Reset engine for next evaluation
+   */
+  reset() {
+    this.results = [];
   }
-
-  // BUDGET LOGIC
-  if (budget < 500) {
-    decision.riskLevel = "High";
-    decision.confidence -= 0.15;
-  } else if (budget > 2000) {
-    decision.confidence += 0.05;
-  }
-
-  return decision;
 }
 
-module.exports = decisionEngine;
+module.exports = { DecisionEngine };
