@@ -1,7 +1,7 @@
 // src/controllers/soullytics.controller.js
 
 const { buildContext } = require("../core/contextBuilder");
-const { routeMode, MODES } = require("../core/modeRouter");
+const { routeaByMode, MODES } = require("../core/modeRouter");
 const { runModeA } = require("../core/modeAFlow");
 const { runModeB } = require("../core/modeBFlow");
 const { runModeC } = require("../core/modeCFlow");
@@ -11,7 +11,7 @@ async function handleSoullytics(req, res) {
     const input = req.body;
 
     const context = buildContext(input);
-    const routing = routeMode({
+    const routing = routeByMode({
       mode: context.mode,
       payload: context
     });
