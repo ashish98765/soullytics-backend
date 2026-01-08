@@ -1,11 +1,10 @@
 const express = require("express");
 const router = express.Router();
 
-router.get("/health", (req, res) => {
-  res.status(200).json({
-    status: "ok",
-    service: "soullytics-backend"
-  });
-});
+const {
+  handleSoullytics
+} = require("../controllers/soullytics.controller");
+
+router.post("/soullytics", handleSoullytics);
 
 module.exports = router;
