@@ -6,37 +6,38 @@ const { AdsCode } = require("../core/adsCode.interface");
 class BudgetRealityEngine extends AdsCode {
   run() {
     const budget = Number(this.context.budget);
+    const platform = this.context.platform;
 
-    if (!budget || budget <= 0) {
+    if (!budget || isNaN(budget)) {
       return engineResult({
         engine: "AdsCode02_BudgetReality",
         status: "FAIL",
-        message: "Budget missing or zero. Ads cannot run without money."
+        message: "Budget missing or invalid. Ads cannot run without a real budget."
       });
     }
 
-    if (budget < 300) {
+    const minimumBudgetByPlatform = {
+      meta: 500,     // INR per day
+      google: 800,
+      youtube: 1000
+    };
+
+    const minRequired = minimumBudgetByPlatform[platform] || 500;
+
+    if (budget < minRequired) {
       return engineResult({
         engine: "AdsCode02_BudgetReality",
         status: "FAIL",
-        message: `Budget ₹${budget} is too low to produce any meaningful ad data.`
-      });
-    }
-
-    if (budget < 1000) {
-      return engineResult({
-        engine: "AdsCode02_BudgetReality",
-        status: "WARNING",
-        score: 0.4,
-        message: `Budget ₹${budget} is low. Ads may run, but results will be unstable.`
+        score: 0.9,
+        message: `Budget too low for ${platform}. Minimum realistic budget is ₹${minRequired}/day.`
       });
     }
 
     return engineResult({
       engine: "AdsCode02_BudgetReality",
       status: "PASS",
-      score: 0.9,
-      message: `Budget ₹${budget} is sufficient for controlled ad testing.`
+      score: 0.2,
+      message: `Budget ₹${budget}/day is realistic for ${platform}.`
     });
   }
 }
