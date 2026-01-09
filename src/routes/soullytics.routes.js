@@ -3,8 +3,8 @@
 const express = require("express");
 const router = express.Router();
 
-const { handleSoullytics } = require("../controllers/soullytics.controller");
-
+const { handleSoullytics } = require("../controllers/soullytics.controller.js") ;
+       
 router.post("/soullytics", handleSoullytics);
 
 module.exports = router;
