@@ -1,41 +1,26 @@
 const express = require("express");
 const app = express();
 
-/* --------------------
-   Middleware
--------------------- */
+// Middleware
 app.use(express.json());
 
-/* --------------------
-   Routes
--------------------- */
+// Routes
 const soullyticsRoutes = require("./src/routes/soullytics.routes");
-const decisionRoutes = require("./src/routes/decision.routes");
 const healthRoutes = require("./src/routes/health.routes");
+const decisionRoutes = require("./src/routes/decision.routes");
 
-/* --------------------
-   Route Mounting
--------------------- */
-
-// Health check (Render / uptime)
+// Mount routes
 app.use("/health", healthRoutes);
-
-// Core APIs
 app.use("/api", soullyticsRoutes);
 app.use("/api", decisionRoutes);
 
-/* --------------------
-   Root fallback
--------------------- */
+// Root fallback
 app.get("/", (req, res) => {
   res.send("Soullytics Backend is running");
 });
 
-/* --------------------
-   Server
--------------------- */
+// Server
 const PORT = process.env.PORT || 3000;
-
 app.listen(PORT, () => {
   console.log(`Soullytics backend running on port ${PORT}`);
 });
