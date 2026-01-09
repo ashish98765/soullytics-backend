@@ -1,27 +1,25 @@
-// index.js (ROOT)
-
 const express = require("express");
 const app = express();
+
+// Middleware
+app.use(express.json());
 
 // Routes
 const soullyticsRoutes = require("./src/routes/soullytics.routes");
 const healthRoutes = require("./src/routes/health.routes");
 
-const PORT = process.env.PORT || 5000;
+// Mount routes
+app.use("/", soullyticsRoutes);
+app.use("/", healthRoutes);
 
-app.use(express.json());
-
-// Health check
-app.use("/health", healthRoutes);
-
-// Main API
-app.use("/api/v1", soullyticsRoutes);
-
-// Root check
+// Default fallback
 app.get("/", (req, res) => {
-  res.send("SOULLYTICS backend running");
+  res.send("Soullytics Backend is running");
 });
 
+// Port
+const PORT = process.env.PORT || 3000;
+
 app.listen(PORT, () => {
-  console.log(`SOULLYTICS server running on port ${PORT}`);
+  console.log(`Soullytics backend running on port ${PORT}`);
 });
