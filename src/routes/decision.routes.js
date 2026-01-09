@@ -5,7 +5,9 @@ const router = express.Router();
 
 const { DecisionOrchestrator } = require("../core/decisionOrchestrator");
 
-// Import Ads Codes (1–19)
+// ================================
+// Ads Decision Codes (1–19)
+// ================================
 const AdsCode01 = require("../engines/adsCode01.objectiveClarity");
 const AdsCode02 = require("../engines/adsCode02.budgetReality");
 const AdsCode03 = require("../engines/adsCode03.platformSelection");
@@ -26,10 +28,12 @@ const AdsCode17 = require("../engines/adsCode17.platformBias");
 const AdsCode18 = require("../engines/adsCode18.stopLoss");
 const AdsCode19 = require("../engines/adsCode19.finalComposer");
 
-// DEBUG DECISION ENDPOINT
+// ================================
+// DEBUG / INTERNAL DECISION ENDPOINT
+// ================================
 router.post("/decision/debug", async (req, res) => {
   try {
-    const context = req.body;
+    const context = req.body || {};
 
     const orchestrator = new DecisionOrchestrator([
       AdsCode01,
@@ -50,19 +54,22 @@ router.post("/decision/debug", async (req, res) => {
       AdsCode16,
       AdsCode17,
       AdsCode18,
-      AdsCode19,
+      AdsCode19
     ]);
 
     const decision = await orchestrator.run(context);
 
-    res.json({
+    return res.json({
       success: true,
-      decision,
+      mode: "DEBUG",
+      decision
     });
   } catch (err) {
-    res.status(500).json({
+    console.error("Decision Debug Error:", err);
+
+    return res.status(500).json({
       success: false,
-      error: err.message,
+      error: err.message
     });
   }
 });
