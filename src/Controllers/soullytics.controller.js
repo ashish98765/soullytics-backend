@@ -1,8 +1,41 @@
+// src/controllers/soullytics.controller.js
+
+const { routeByMode } = require("../core/modeRouter");
+const { runModeA } = require("../core/modeAFlow");
+const { runModeB } = require("../core/modeBFlow");
+const { runModeC } = require("../core/modeCFlow");
+
 async function handleSoullytics(req, res) {
-  return res.status(200).json({
-    status: "OK",
-    message: "Soullytics backend is alive"
-  });
+  try {
+    const { mode, payload } = req.body;
+
+    const route = routeByMode({ mode, payload });
+
+    let result;
+
+    if (route.mode === "MODE_A") {
+      result = await runModeA(payload);
+    }
+
+    if (route.mode === "MODE_B") {
+      result = await runModeB(payload);
+    }
+
+    if (route.mode === "MODE_C") {
+      result = await runModeC(payload);
+    }
+
+    return res.json({
+      success: true,
+      result
+    });
+
+  } catch (err) {
+    return res.status(400).json({
+      success: false,
+      error: err.message
+    });
+  }
 }
 
 module.exports = { handleSoullytics };
