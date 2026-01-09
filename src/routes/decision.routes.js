@@ -1,5 +1,6 @@
 // src/routes/decision.routes.js
 
+const { supabase } = require("../lib/supabaseClient");
 const express = require("express");
 const router = express.Router();
 
@@ -70,6 +71,36 @@ router.post("/decision/debug", async (req, res) => {
     return res.status(500).json({
       success: false,
       error: err.message
+    });
+  }
+});
+
+// ===============================
+// DECISION HISTORY ENDPOINT
+// ===============================
+router.get("/decision/history", async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from("decisions")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(50);
+
+    if (error) {
+      throw error;
+    }
+
+    return res.json({
+      success: true,
+      count: data.length,
+      decisions: data,
+    });
+  } catch (err) {
+    console.error("Decision History Error:", err);
+
+    return res.status(500).json({
+      success: false,
+      error: err.message,
     });
   }
 });
