@@ -1,10 +1,8 @@
 const express = require("express");
 const router = express.Router();
 
-const {
-  handleSoullytics
-} = require("../controllers/soullytics.controller");
-
-router.post("/soullytics", handleSoullytics);
+router.get("/", (req, res) => {
+  res.json({ status: "ok", service: "SOULLYTICS" });
+});
 
 module.exports = router;
