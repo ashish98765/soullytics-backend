@@ -11,6 +11,7 @@ class ObjectiveClarityEngine extends AdsCode {
       return engineResult({
         engine: "AdsCode01_ObjectiveClarity",
         status: "FAIL",
+        score: 0,
         message: "Objective missing. System cannot decide ads without a clear goal."
       });
     }
@@ -21,7 +22,8 @@ class ObjectiveClarityEngine extends AdsCode {
       return engineResult({
         engine: "AdsCode01_ObjectiveClarity",
         status: "FAIL",
-        message: `Invalid objective "${objective}". Must be one of ${allowedObjectives.join(", ")}.`
+        score: 0,
+        message: `Invalid objective '${objective}'. Allowed: ${allowedObjectives.join(", ")}`
       });
     }
 
@@ -29,7 +31,7 @@ class ObjectiveClarityEngine extends AdsCode {
       engine: "AdsCode01_ObjectiveClarity",
       status: "PASS",
       score: 1,
-      message: `Objective "${objective}" is clear and valid.`
+      message: `Objective '${objective}' is clear and valid.`
     });
   }
 }
