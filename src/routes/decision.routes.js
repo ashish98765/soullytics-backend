@@ -59,7 +59,19 @@ router.post("/decision/debug", async (req, res) => {
     ]);
 
     const decision = await orchestrator.run(context);
+    const { error } = await supabase.from("decisions").insert({
+  mode: "DEBUG",
+  final_decision: decision.finalDecision,
+  confidence: decision.confidence,
+  warnings: decision.engineResults.filter(r => r.status === "WARNING"),
+  evaluated_engines: decision.evaluatedEngines,
+  full_decision: decision
+});
 
+if (error) {
+  console.error("Supabase Insert Error:", error);
+}
+});
     return res.json({
       success: true,
       mode: "DEBUG",
