@@ -11,33 +11,67 @@ class FinalAdsComposer extends AdsCode {
       return engineResult({
         engine: "AdsCode19_FinalComposer",
         status: "FAIL",
-        message: "Engine results missing or invalid. Decision cannot be made."
+        score: 0,
+        message: "Engine results missing or invalid."
       });
     }
 
-    const failCount = engineResults.filter(r => r.status === "FAIL").length;
-    const warningCount = engineResults.filter(r => r.status === "WARNING").length;
+    let score = 0;
+    let maxScore = engineResults.length * 6;
+    let failCount = 0;
+    let warnCount = 0;
 
+    for (const r of engineResults) {
+      const status = r.status || "PASS";
+      const impact = r.impact || "LOW";
+
+      if (status === "FAIL") {
+        failCount++;
+        if (impact === "HIGH") score -= 8;
+        else if (impact === "MEDIUM") score -= 5;
+        else score -= 2;
+      }
+
+      if (status === "WARNING") {
+        warnCount++;
+        if (impact === "HIGH") score -= 4;
+        else score -= 2;
+      }
+
+      if (status === "PASS") {
+        if (impact === "HIGH") score += 6;
+        else if (impact === "MEDIUM") score += 4;
+        else score += 2;
+      }
+    }
+
+    let confidence = Math.round((score / maxScore) * 100);
+    confidence = Math.max(0, Math.min(confidence, 100));
+
+    // FINAL DECISION LOGIC
     if (failCount > 0) {
       return engineResult({
         engine: "AdsCode19_FinalComposer",
         status: "DO_NOT_RUN",
-        message: "One or more critical failures detected. Ads must not run."
+        score: confidence,
+        message: "Critical failures detected. Ads must not run."
       });
     }
 
-    if (warningCount >= 2) {
+    if (warnCount >= 2) {
       return engineResult({
         engine: "AdsCode19_FinalComposer",
         status: "PAUSE",
-        message: "Multiple warnings detected. Fix issues before running ads."
+        score: confidence,
+        message: "Multiple warnings detected. Review before running ads."
       });
     }
 
     return engineResult({
       engine: "AdsCode19_FinalComposer",
       status: "RUN",
-      message: "All systems healthy. Ads are cleared to run."
+      score: confidence,
+      message: "System healthy. Ads cleared to run."
     });
   }
 }
