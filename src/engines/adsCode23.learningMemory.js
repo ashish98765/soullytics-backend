@@ -8,50 +8,53 @@ class LearningMemoryEngine {
   }
 
   run() {
-    const historicalDecisions = Array.isArray(this.context.historicalDecisions)
+    const history = Array.isArray(this.context.historicalDecisions)
       ? this.context.historicalDecisions
       : [];
 
-    const currentSetupHash = this.context.currentSetupHash;
-    const lastOutcome = this.context.lastOutcome;
     const repeatCount = Number(this.context.repeatCount || 0);
+    const lastOutcome = this.context.lastOutcome || null;
 
-    // 🚨 Repeating failed setup
-    if (lastOutcome === "FAILURE" && repeatCount > 0) {
+    // ❌ Same failed setup repeated
+    if (lastOutcome === "FAIL" && repeatCount >= 1) {
       return engineResult({
         engine: "AdsCode23_LearningMemory",
         status: "FAIL",
         score: 1,
-        message: "Previously failed setup is being repeated. System refuses to retry blindly."
+        message:
+          "Previously failed setup is being repeated. Learning violated.",
       });
     }
 
-    // 🚨 Over-repeating same setup
-    if (repeatCount >= 2) {
+    // ❌ Blind repetition
+    if (repeatCount >= 3) {
       return engineResult({
         engine: "AdsCode23_LearningMemory",
         status: "FAIL",
         score: 1,
-        message: "Same setup repeated multiple times. No new learning expected."
+        message:
+          "Same setup repeated multiple times. No learning detected.",
       });
     }
 
-    // ⚠️ History exists but mixed
-    if (historicalDecisions.length > 0) {
+    // ⚠️ History exists but mixed outcomes
+    if (history.length > 0 && repeatCount === 0) {
       return engineResult({
         engine: "AdsCode23_LearningMemory",
         status: "WARNING",
         score: 0.6,
-        message: "Historical data exists. Ensure setup changes before proceeding."
+        message:
+          "Historical data exists. Ensure meaningful changes before proceeding.",
       });
     }
 
-    // ✅ Fresh setup
+    // ✅ Fresh or improved setup
     return engineResult({
       engine: "AdsCode23_LearningMemory",
       status: "PASS",
       score: 0.3,
-      message: "No conflicting history. Safe to proceed."
+      message:
+        "Learning intact. No conflicting historical repetition detected.",
     });
   }
 }
