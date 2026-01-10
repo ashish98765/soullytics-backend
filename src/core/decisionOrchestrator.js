@@ -2,14 +2,13 @@
 
 /**
  * Soullytics Decision Orchestrator
- * Runs Ads Decision Engines 01–18 in strict order
- * Then runs Ads Code 19 (Final Composer)
+ * Runs Ads Decision Engines 01–23 in strict order
  * Returns FINAL, NON-EMOTIONAL decision
  */
 
 const { DecisionEngine } = require("../engines/decision.engine");
 
-// Ads Decision Engines (01–18)
+// Engines 01–18
 const { ObjectiveClarityEngine } = require("../engines/adsCode01.objectiveClarity");
 const { BudgetRealityEngine } = require("../engines/adsCode02.budgetReality");
 const { PlatformSelectionEngine } = require("../engines/adsCode03.platformSelection");
@@ -29,8 +28,13 @@ const { ScalingReadinessEngine } = require("../engines/adsCode16.scalingReadines
 const { PlatformBiasEngine } = require("../engines/adsCode17.platformBias");
 const { StopLossEngine } = require("../engines/adsCode18.stopLoss");
 
-// Final Decision Composer (19)
+// Engine 19
 const { FinalAdsComposer } = require("../engines/adsCode19.finalComposer");
+
+// Engines 21–23 (INTELLIGENCE LAYER)
+const { RealityCheckEngine } = require("../engines/adsCode21.realityCheck");
+const { FeedbackLoopEngine } = require("../engines/adsCode22.feedbackLoop");
+const { LearningMemoryEngine } = require("../engines/adsCode23.learningMemory");
 
 class DecisionOrchestrator {
   constructor() {
@@ -58,10 +62,15 @@ class DecisionOrchestrator {
       RiskDetectionEngine,
       ScalingReadinessEngine,
       PlatformBiasEngine,
-      StopLossEngine
+      StopLossEngine,
+
+      // Intelligence & learning
+      RealityCheckEngine,
+      FeedbackLoopEngine,
+      LearningMemoryEngine,
     ];
 
-    // Run Ads Codes 01–18
+    // Run engines 01–18 + 21–23
     for (const Engine of engines) {
       const engineInstance = new Engine(context);
       const result = engineInstance.run();
@@ -71,11 +80,11 @@ class DecisionOrchestrator {
     // Resolve base decision
     const baseDecision = this.decisionEngine.resolve();
 
-    // Run Ads Code 19 — Final Composer
+    // Final Composer (19)
     const finalComposer = new FinalAdsComposer({
       context,
       baseDecision,
-      engineResults: this.decisionEngine.results
+      engineResults: this.decisionEngine.results,
     });
 
     const finalResult = finalComposer.run();
@@ -86,7 +95,7 @@ class DecisionOrchestrator {
       message: finalResult.message,
       evaluatedEngines: this.decisionEngine.results.length,
       engineResults: [...this.decisionEngine.results, finalResult],
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     };
   }
 }
