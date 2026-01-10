@@ -1,5 +1,3 @@
-// src/engines/adsCode26.burnRate.js
-
 const { engineResult } = require("../core/engineResult");
 
 class BurnRateEngine {
@@ -15,34 +13,37 @@ class BurnRateEngine {
 
     const avgDailySpend = spend / daysRunning;
 
-    // 🚨 Budget burning too fast without results
-    if (avgDailySpend > dailyBudget * 0.9 && conversions === 0) {
+    // Capital destruction
+    if (avgDailySpend > dailyBudget * 0.9 && conversions === 0 && daysRunning >= 3) {
       return engineResult({
         engine: "AdsCode26_BurnRate",
         status: "FAIL",
+        impact: "HIGH",
+        authority: 5,
         score: 1,
-        message:
-          "Budget is burning rapidly with no conversions. Immediate stop recommended."
+        message: "Budget burning rapidly with no conversions. Immediate stop required."
       });
     }
 
-    // ⚠️ High burn, low learning
+    // High burn, low learning
     if (spend > dailyBudget * 3 && conversions < 2) {
       return engineResult({
         engine: "AdsCode26_BurnRate",
         status: "WARNING",
+        impact: "MEDIUM",
+        authority: 4,
         score: 0.7,
-        message:
-          "Significant budget spent with minimal learning. Burn rate is inefficient."
+        message: "High spend with minimal learning. Burn rate inefficient."
       });
     }
 
-    // ✅ Burn rate acceptable
     return engineResult({
       engine: "AdsCode26_BurnRate",
       status: "PASS",
+      impact: "LOW",
+      authority: 2,
       score: 0.3,
-      message: "Burn rate is under control relative to performance."
+      message: "Burn rate under control."
     });
   }
 }
