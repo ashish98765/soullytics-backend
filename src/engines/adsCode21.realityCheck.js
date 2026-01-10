@@ -1,5 +1,3 @@
-// src/engines/adsCode21.realityCheck.js
-
 const { engineResult } = require("../core/engineResult");
 
 class RealityCheckEngine {
@@ -14,41 +12,49 @@ class RealityCheckEngine {
     const conversionRate = Number(this.context.conversionRate || 0);
     const daysRunning = Number(this.context.daysRunning || 0);
 
-    // 🚨 False signal: clicks but no conversions
-    if (ctr > 2 && conversionRate === 0) {
+    // Fake signal trap
+    if (ctr > 2 && conversionRate === 0 && daysRunning >= 3) {
       return engineResult({
         engine: "AdsCode21_RealityCheck",
         status: "FAIL",
+        impact: "HIGH",
+        authority: 4,
         score: 1,
-        message: "High CTR with zero conversions. Traffic is misleading."
+        message: "High CTR with zero conversions after learning phase. Traffic is misleading."
       });
     }
 
-    // ⚠️ Cost mismatch
+    // Funnel economics mismatch
     if (cpc > 0 && cpl > cpc * 5) {
       return engineResult({
         engine: "AdsCode21_RealityCheck",
         status: "WARNING",
-        score: 0.6,
-        message: "CPL disproportionately high compared to CPC. Funnel may be broken."
+        impact: "MEDIUM",
+        authority: 3,
+        score: 0.7,
+        message: "CPL disproportionately high vs CPC. Funnel leakage suspected."
       });
     }
 
-    // ⚠️ Too early to judge
+    // Too early
     if (daysRunning < 3) {
       return engineResult({
         engine: "AdsCode21_RealityCheck",
         status: "WARNING",
-        score: 0.7,
-        message: "Campaign is too new. Data not reliable yet."
+        impact: "LOW",
+        authority: 2,
+        score: 0.5,
+        message: "Campaign too new. Reality check deferred."
       });
     }
 
     return engineResult({
       engine: "AdsCode21_RealityCheck",
       status: "PASS",
+      impact: "LOW",
+      authority: 2,
       score: 0.3,
-      message: "Performance metrics align with reality."
+      message: "Performance aligns with reality."
     });
   }
 }
