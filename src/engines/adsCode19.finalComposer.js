@@ -10,118 +10,42 @@ class FinalAdsComposer extends AdsCode {
     if (!Array.isArray(engineResults) || engineResults.length === 0) {
       return engineResult({
         engine: "AdsCode19_FinalComposer",
-        status: "FAIL",
+        status: "DO_NOT_RUN",
         score: 0,
-        message: "Engine results missing or invalid. System cannot decide."
+        message: "No engine results found. System refuses to decide blindly."
       });
     }
 
-    let failCount = 0;
-    let warningCount = 0;
+    // 🚨 HARD FAIL RULE (absolute veto)
+    const failedEngine = engineResults.find(r => r.status === "FAIL");
 
-    let weightedScore = 0;
-    let maxScore = 0;
-
-    let hasCriticalFail = false;
-    let humanOverrideRisk = false;
-
-    for (const r of engineResults) {
-      const status = r.status || "PASS";
-      const score = Number(r.score ?? 0.3);
-
-      // ---- Engine trust weighting ----
-      let weight = 1;
-
-      // Intelligence / learning engines = higher trust
-      if (
-        r.engine.includes("Reality") ||
-        r.engine.includes("Learning") ||
-        r.engine.includes("Feedback") ||
-        r.engine.includes("Integrity") ||
-        r.engine.includes("BurnRate") ||
-        r.engine.includes("Risk")
-      ) {
-        weight = 1.5;
-      }
-
-      // Human override engines = high impact
-      if (r.engine.includes("HumanOverride") || r.engine.includes("FounderRisk")) {
-        weight = 1.8;
-        if (status !== "PASS") humanOverrideRisk = true;
-      }
-
-      maxScore += 1 * weight;
-
-      if (status === "FAIL") {
-        failCount++;
-        weightedScore -= 1.2 * weight;
-
-        // Capital & safety fails are absolute veto
-        if (
-          r.engine.includes("StopLoss") ||
-          r.engine.includes("BurnRate") ||
-          r.engine.includes("Risk")
-        ) {
-          hasCriticalFail = true;
-        }
-      }
-
-      if (status === "WARNING") {
-        warningCount++;
-        weightedScore -= 0.6 * weight;
-      }
-
-      if (status === "PASS") {
-        weightedScore += score * weight;
-      }
-    }
-
-    // ---- Normalize confidence ----
-    let confidence = Math.round((weightedScore / maxScore) * 100);
-    confidence = Math.max(0, Math.min(confidence, 100));
-
-    // ---- FINAL DECISION LOGIC ----
-
-    // ❌ Absolute stop
-    if (hasCriticalFail || failCount >= 2) {
+    if (failedEngine) {
       return engineResult({
         engine: "AdsCode19_FinalComposer",
         status: "DO_NOT_RUN",
-        score: confidence,
-        message:
-          "Critical failures detected. Capital or risk protection breached. Ads must not run."
+        score: 0,
+        message: `Engine ${failedEngine.engine} failed. Ads are BLOCKED.`
       });
     }
 
-    // ⚠️ Human override risk → force pause
-    if (humanOverrideRisk && warningCount >= 1) {
+    // ⚠️ WARNINGS → PAUSE
+    const warningCount = engineResults.filter(r => r.status === "WARNING").length;
+
+    if (warningCount >= 1) {
       return engineResult({
         engine: "AdsCode19_FinalComposer",
         status: "PAUSE",
-        score: confidence,
-        message:
-          "Human override risk detected with warnings. Pause recommended to prevent emotional loss."
+        score: 50,
+        message: "Warnings detected. Human review required before running ads."
       });
     }
 
-    // ⚠️ Too many warnings
-    if (warningCount >= 3) {
-      return engineResult({
-        engine: "AdsCode19_FinalComposer",
-        status: "PAUSE",
-        score: confidence,
-        message:
-          "Multiple warning signals detected. System advises pause and review."
-      });
-    }
-
-    // ✅ Safe to run
+    // ✅ ALL PASS → RUN
     return engineResult({
       engine: "AdsCode19_FinalComposer",
       status: "RUN",
-      score: confidence,
-      message:
-        "System stable. Risk acceptable. Ads cleared to run."
+      score: 90,
+      message: "All engines passed. Ads cleared to run safely."
     });
   }
 }
