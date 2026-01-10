@@ -8,46 +8,53 @@ class FeedbackLoopEngine {
   }
 
   run() {
-    const previousDecision = this.context.previousDecision;
-    const previousWarningsCount = Number(this.context.previousWarningsCount || 0);
+    const lastDecision = this.context.lastDecision || null;
+    const lastStatus = lastDecision?.final_decision || null;
+    const lastWarningsCount = Number(lastDecision?.warnings_count || 0);
+
     const changesApplied = this.context.changesApplied === true;
     const daysSinceLastDecision = Number(this.context.daysSinceLastDecision || 0);
 
-    // 🚨 Ignored warnings
-    if (previousWarningsCount >= 2 && !changesApplied) {
+    // ❌ Warning ignored previously
+    if (lastWarningsCount > 0 && !changesApplied) {
       return engineResult({
         engine: "AdsCode22_FeedbackLoop",
         status: "FAIL",
         score: 1,
-        message: "Previous warnings ignored. System learning loop broken."
+        message:
+          "Previous warnings were ignored. No corrective changes applied.",
       });
     }
 
-    // 🚨 Ignored pause
-    if (previousDecision === "PAUSE" && !changesApplied) {
+    // ❌ Pause ignored
+    if (lastStatus === "PAUSE" && !changesApplied) {
       return engineResult({
         engine: "AdsCode22_FeedbackLoop",
         status: "FAIL",
         score: 1,
-        message: "Previous PAUSE decision ignored. Repeating same setup."
+        message:
+          "Previous PAUSE decision ignored. Same risky setup repeated.",
       });
     }
 
-    // ⚠️ Too soon to judge learning
+    // ⚠️ Too early to judge learning
     if (daysSinceLastDecision < 2) {
       return engineResult({
         engine: "AdsCode22_FeedbackLoop",
         status: "WARNING",
-        score: 0.7,
-        message: "Too early to evaluate learning. Allow more time."
+        score: 0.6,
+        message:
+          "Too early to evaluate feedback loop. Allow more time.",
       });
     }
 
+    // ✅ Healthy feedback loop
     return engineResult({
       engine: "AdsCode22_FeedbackLoop",
       status: "PASS",
       score: 0.3,
-      message: "Feedback loop healthy. System is adapting."
+      message:
+        "Feedback loop healthy. System adapting based on history.",
     });
   }
 }
