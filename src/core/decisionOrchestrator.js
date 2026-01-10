@@ -3,7 +3,10 @@
 const { DecisionEngine } = require("../engines/decision.engine");
 const { buildDecisionTrace } = require("./decisionTrace");
 
-// Engines 01–18
+/* =========================
+   Engines 01–18 (Core Logic)
+========================= */
+
 const { ObjectiveClarityEngine } = require("../engines/adsCode01.objectiveClarity");
 const { BudgetRealityEngine } = require("../engines/adsCode02.budgetReality");
 const { PlatformSelectionEngine } = require("../engines/adsCode03.platformSelection");
@@ -11,7 +14,7 @@ const { AudienceTemperatureEngine } = require("../engines/adsCode04.audienceTemp
 const { MessageAudienceMatchEngine } = require("../engines/adsCode05.messageAudienceMatch");
 const { HookStrengthEngine } = require("../engines/adsCode06.hookStrength");
 const { EmotionalIntensityEngine } = require("../engines/adsCode07.emotionalIntensity");
-const { CTAggressionEngine } = require("../engines/adsCode08.ctaAggression");
+const { CTAAggressionEngine } = require("../engines/adsCode08.ctaAggression");
 const { CreativeFormatEngine } = require("../engines/adsCode09.creativeFormat");
 const { PlatformRulesEngine } = require("../engines/adsCode10.platformRules");
 const { TestingStrategyEngine } = require("../engines/adsCode11.testingStrategy");
@@ -23,10 +26,16 @@ const { ScalingReadinessEngine } = require("../engines/adsCode16.scalingReadines
 const { PlatformBiasEngine } = require("../engines/adsCode17.platformBias");
 const { StopLossEngine } = require("../engines/adsCode18.stopLoss");
 
-// Final Composer
+/* =========================
+   Final Composer (19)
+========================= */
+
 const { FinalAdsComposer } = require("../engines/adsCode19.finalComposer");
 
-// Intelligence Layer (21–30)
+/* =========================
+   Intelligence Layer (21–30)
+========================= */
+
 const { RealityCheckEngine } = require("../engines/adsCode21.realityCheck");
 const { FeedbackLoopEngine } = require("../engines/adsCode22.feedbackLoop");
 const { LearningMemoryEngine } = require("../engines/adsCode23.learningMemory");
@@ -37,6 +46,10 @@ const { CreativeNoveltyEngine } = require("../engines/adsCode28.creativeNovelty"
 const { HumanOverrideRiskEngine } = require("../engines/adsCode29.humanOverrideRisk");
 const { FounderRiskProfileEngine } = require("../engines/adsCode30.founderRiskProfile");
 
+/* =========================
+   Decision Orchestrator
+========================= */
+
 class DecisionOrchestrator {
   constructor() {
     this.decisionEngine = new DecisionEngine();
@@ -46,6 +59,7 @@ class DecisionOrchestrator {
     this.decisionEngine.reset();
 
     const engines = [
+      // Core logic
       ObjectiveClarityEngine,
       BudgetRealityEngine,
       PlatformSelectionEngine,
@@ -53,7 +67,7 @@ class DecisionOrchestrator {
       MessageAudienceMatchEngine,
       HookStrengthEngine,
       EmotionalIntensityEngine,
-      CTAggressionEngine,
+      CTAAggressionEngine,
       CreativeFormatEngine,
       PlatformRulesEngine,
       TestingStrategyEngine,
@@ -77,14 +91,17 @@ class DecisionOrchestrator {
       FounderRiskProfileEngine
     ];
 
+    // Run all engines
     for (const Engine of engines) {
       const engineInstance = new Engine(context);
       const result = engineInstance.run();
       this.decisionEngine.register(result);
     }
 
+    // Base aggregation
     const baseDecision = this.decisionEngine.resolve();
 
+    // Final hard gate
     const finalComposer = new FinalAdsComposer({
       context,
       baseDecision,
@@ -93,6 +110,7 @@ class DecisionOrchestrator {
 
     const finalResult = finalComposer.run();
 
+    // Explainability trace
     const trace = buildDecisionTrace(
       [...this.decisionEngine.results, finalResult],
       finalResult.status,
@@ -100,7 +118,7 @@ class DecisionOrchestrator {
     );
 
     return {
-      finalDecision: finalResult.status,
+      finalDecision: finalResult.status, // RUN | PAUSE | DO_NOT_RUN
       confidence: finalResult.score,
       trace,
       timestamp: new Date().toISOString()
