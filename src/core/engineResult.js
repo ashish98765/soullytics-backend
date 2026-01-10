@@ -1,22 +1,22 @@
 // src/core/engineResult.js
 
-/**
- * Standard response format for ALL engines in Soullytics
- */
-
 function engineResult({
   engine,
   status,
   score = null,
+  impact = "MEDIUM", // LOW | MEDIUM | HIGH
+  authority = 1,     // 1 (weak) → 5 (critical)
   message,
   data = {}
 }) {
   return {
-    engine,              // engine name
-    status,              // PASS | WARNING | FAIL
-    score,               // 0.0 – 1.0 (confidence / risk)
-    message,             // human-readable reason
-    data,                // engine-specific output
+    engine,
+    status,       // PASS | WARNING | FAIL
+    score,        // numeric influence
+    impact,       // used by FinalComposer
+    authority,    // hierarchy power
+    message,
+    data,
     timestamp: new Date().toISOString()
   };
 }
