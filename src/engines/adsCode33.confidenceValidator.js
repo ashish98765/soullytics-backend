@@ -8,50 +8,38 @@ class ConfidenceValidatorEngine {
   }
 
   run() {
-    const confidence = Number(this.context.confidence || 0);
-    const finalDecision = this.context.finalDecision;
-    const warnings =
-      this.context.engineResults?.filter(r => r.status === "WARNING") || [];
+    const score = Number(this.context.finalConfidence || 0);
+    const failCount = (this.context.engineResults || []).filter(
+      r => r.status === "FAIL"
+    ).length;
 
-    // ❌ Overconfidence detected
-    if (confidence >= 80 && warnings.length >= 2) {
-      return engineResult({
-        engine: "AdsCode33_ConfidenceValidator",
-        status: "WARNING",
-        score: 0.7,
-        message:
-          "High confidence despite multiple warnings. Possible overconfidence bias."
-      });
-    }
-
-    // ❌ Under-confidence while RUN
-    if (finalDecision === "RUN" && confidence < 40) {
+    // ❌ High confidence but failures present → false confidence
+    if (score >= 70 && failCount > 0) {
       return engineResult({
         engine: "AdsCode33_ConfidenceValidator",
         status: "FAIL",
         score: 1,
         message:
-          "System recommends RUN but confidence is very low. Risky execution."
+          "High confidence detected despite critical failures. Confidence is invalid."
       });
     }
 
-    // ⚠ Conservative confidence
-    if (finalDecision !== "RUN" && confidence > 70) {
+    // ⚠️ Low confidence but no failures → uncertainty
+    if (score < 40 && failCount === 0) {
       return engineResult({
         engine: "AdsCode33_ConfidenceValidator",
         status: "WARNING",
-        score: 0.6,
+        score: 0.7,
         message:
-          "Decision is conservative but confidence remains high. Recheck assumptions."
+          "Low confidence without failures. Data may be insufficient or noisy."
       });
     }
 
-    // ✅ Confidence aligned
     return engineResult({
       engine: "AdsCode33_ConfidenceValidator",
       status: "PASS",
       score: 0.3,
-      message: "Decision confidence is aligned with system signals."
+      message: "Confidence level validated."
     });
   }
 }
