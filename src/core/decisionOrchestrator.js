@@ -2,10 +2,11 @@
 
 const { DecisionEngine } = require("../engines/decision.engine");
 const { buildDecisionTrace } = require("./decisionTrace");
+const { formatDecisionResponse } = require("./decisionResponseFormatter");
 
-/* =========================
-   Engines 01–18 (Core Logic)
-========================= */
+/* ================================
+   Core Engines (01–18)
+================================ */
 
 const { ObjectiveClarityEngine } = require("../engines/adsCode01.objectiveClarity");
 const { BudgetRealityEngine } = require("../engines/adsCode02.budgetReality");
@@ -26,15 +27,15 @@ const { ScalingReadinessEngine } = require("../engines/adsCode16.scalingReadines
 const { PlatformBiasEngine } = require("../engines/adsCode17.platformBias");
 const { StopLossEngine } = require("../engines/adsCode18.stopLoss");
 
-/* =========================
-   Final Composer (19)
-========================= */
+/* ================================
+   Final Gate
+================================ */
 
 const { FinalAdsComposer } = require("../engines/adsCode19.finalComposer");
 
-/* =========================
+/* ================================
    Intelligence Layer (21–30)
-========================= */
+================================ */
 
 const { RealityCheckEngine } = require("../engines/adsCode21.realityCheck");
 const { FeedbackLoopEngine } = require("../engines/adsCode22.feedbackLoop");
@@ -46,16 +47,16 @@ const { CreativeNoveltyEngine } = require("../engines/adsCode28.creativeNovelty"
 const { HumanOverrideRiskEngine } = require("../engines/adsCode29.humanOverrideRisk");
 const { FounderRiskProfileEngine } = require("../engines/adsCode30.founderRiskProfile");
 
-/* =========================
+/* ================================
    Decision Orchestrator
-========================= */
+================================ */
 
 class DecisionOrchestrator {
   constructor() {
     this.decisionEngine = new DecisionEngine();
   }
 
-  run(context) {
+  run(context = {}) {
     this.decisionEngine.reset();
 
     const engines = [
@@ -91,17 +92,17 @@ class DecisionOrchestrator {
       FounderRiskProfileEngine
     ];
 
-    // Run all engines
+    /* -------- Execute engines -------- */
     for (const Engine of engines) {
       const engineInstance = new Engine(context);
       const result = engineInstance.run();
       this.decisionEngine.register(result);
     }
 
-    // Base aggregation
+    /* -------- Base aggregation -------- */
     const baseDecision = this.decisionEngine.resolve();
 
-    // Final hard gate
+    /* -------- Final decision gate -------- */
     const finalComposer = new FinalAdsComposer({
       context,
       baseDecision,
@@ -110,19 +111,19 @@ class DecisionOrchestrator {
 
     const finalResult = finalComposer.run();
 
-    // Explainability trace
+    /* -------- Explainability -------- */
     const trace = buildDecisionTrace(
       [...this.decisionEngine.results, finalResult],
       finalResult.status,
       finalResult.score
     );
 
-    return {
-      finalDecision: finalResult.status, // RUN | PAUSE | DO_NOT_RUN
-      confidence: finalResult.score,
-      trace,
-      timestamp: new Date().toISOString()
-    };
+    /* -------- Canonical API response -------- */
+    return formatDecisionResponse({
+      finalResult,
+      engineResults: this.decisionEngine.results,
+      trace
+    });
   }
 }
 
