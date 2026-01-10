@@ -8,60 +8,29 @@ class RecommendationEngine {
   }
 
   run() {
-    const finalDecision = this.context.finalDecision;
-    const warnings = this.context.engineResults?.filter(
+    const warnings = (this.context.engineResults || []).filter(
       r => r.status === "WARNING"
-    ) || [];
+    );
 
-    if (finalDecision === "DO_NOT_RUN") {
-      return engineResult({
-        engine: "AdsCode32_Recommendation",
-        status: "FAIL",
-        score: 1,
-        data: {
-          action: "STOP_ADS",
-          recommendation:
-            "Critical risks detected. Fix funnel, creative, or targeting before retrying."
-        },
-        message: "Do not run ads. Immediate corrective action required."
-      });
-    }
-
-    if (finalDecision === "PAUSE") {
-      return engineResult({
-        engine: "AdsCode32_Recommendation",
-        status: "WARNING",
-        score: 0.6,
-        data: {
-          action: "PAUSE_AND_FIX",
-          recommendation:
-            warnings.length >= 2
-              ? "Multiple warnings detected. Refresh creative or audience."
-              : "Monitor closely and apply minor optimizations."
-        },
-        message: "Pause ads and apply recommended fixes."
-      });
-    }
-
-    if (finalDecision === "RUN") {
+    if (warnings.length === 0) {
       return engineResult({
         engine: "AdsCode32_Recommendation",
         status: "PASS",
         score: 0.3,
-        data: {
-          action: "SCALE_SAFELY",
-          recommendation:
-            "System healthy. Increase budget gradually (10–20%) and monitor."
-        },
-        message: "Ads cleared to run. Safe scaling recommended."
+        message: "No recommendations needed. System signals are clean."
       });
     }
+
+    const recommendations = warnings.map(w => w.message);
 
     return engineResult({
       engine: "AdsCode32_Recommendation",
       status: "WARNING",
-      score: 0.5,
-      message: "Unknown decision state. Manual review advised."
+      score: 0.6,
+      message: "Actionable recommendations generated.",
+      data: {
+        recommendations
+      }
     });
   }
 }
