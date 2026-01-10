@@ -8,57 +8,36 @@ class DecisionEvolutionEngine {
   }
 
   run() {
-    const history = Array.isArray(this.context.decisionHistory)
-      ? this.context.decisionHistory
-      : [];
+    const history = this.context.decisionHistory || [];
 
-    const finalDecision = this.context.finalDecision;
-    const overrideCount = Number(this.context.overrideCount || 0);
-
-    // 🔁 Same bad decision repeated
-    const recentSame = history
-      .slice(-4)
-      .filter(d => d.finalDecision === finalDecision);
-
-    if (recentSame.length >= 3 && finalDecision !== "RUN") {
+    if (history.length < 3) {
       return engineResult({
         engine: "AdsCode34_DecisionEvolution",
-        status: "FAIL",
-        score: 1,
-        message:
-          "Same risky decision repeated multiple times. System evolution is stuck."
+        status: "PASS",
+        score: 0.3,
+        message: "Insufficient history for evolution analysis."
       });
     }
 
-    // ⚠ Human overriding system repeatedly
-    if (overrideCount >= 3) {
+    const lastThree = history.slice(-3).map(d => d.finalDecision);
+    const unique = new Set(lastThree);
+
+    // 🚨 Decision oscillation = instability
+    if (unique.size > 1) {
       return engineResult({
         engine: "AdsCode34_DecisionEvolution",
         status: "WARNING",
         score: 0.7,
         message:
-          "Repeated human overrides detected. Learning integrity weakening."
+          "Decision instability detected across recent runs. Strategy not converging."
       });
     }
 
-    // ⚠ No clear learning trend
-    if (history.length >= 5 && recentSame.length === 0) {
-      return engineResult({
-        engine: "AdsCode34_DecisionEvolution",
-        status: "WARNING",
-        score: 0.5,
-        message:
-          "Decision pattern unstable. System still exploring optimal behavior."
-      });
-    }
-
-    // ✅ Healthy evolution
     return engineResult({
       engine: "AdsCode34_DecisionEvolution",
       status: "PASS",
       score: 0.3,
-      message:
-        "Decision evolution healthy. System learning and adapting correctly."
+      message: "Decision trend is stable and converging."
     });
   }
 }
