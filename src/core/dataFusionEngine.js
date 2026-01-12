@@ -1,19 +1,20 @@
 // src/core/dataFusionEngine.js
 
-const adsDataFusion = require('../engines/adsCode00.dataFusion');
+const adsCode00 = require('../engines/adsCode00.dataFusion');
+const adsCode24 = require('../engines/adsCode24.signalQuality');
+const adsCode35 = require('../engines/adsCode35.dataReliability');
 
-const DataFusionEngine = {
-  run(rawContext = {}) {
-    const fused = adsDataFusion.run(rawContext);
+async function dataFusionEngine(context = {}) {
+  const signals = [];
 
-    return {
-      platform: fused.platform || rawContext.platform,
-      metrics: fused.metrics || rawContext.metrics,
-      history: fused.history || [],
-      timestamp: Date.now(),
-      source: 'dataFusionEngine'
-    };
-  }
-};
+  if (adsCode00) signals.push(adsCode00(context));
+  if (adsCode24) signals.push(adsCode24(context));
+  if (adsCode35) signals.push(adsCode35(context));
 
-module.exports = DataFusionEngine;
+  return {
+    trusted: signals.every(s => s?.status !== 'FAIL'),
+    signals
+  };
+}
+
+module.exports = dataFusionEngine;
