@@ -1,19 +1,19 @@
-// src/engines/core/dataFusion.engine.js
-const dataFusion = require("../adsCode00.dataFusion");
+// src/core/dataFusionEngine.js
 
-class DataFusionEngine {
-  constructor(context) {
-    this.context = context;
-  }
+const adsDataFusion = require('../engines/adsCode00.dataFusion');
 
-  run() {
-    const metrics = this.context.metrics || {};
+const DataFusionEngine = {
+  run(rawContext = {}) {
+    const fused = adsDataFusion.run(rawContext);
+
     return {
-      engine: "DataFusion",
-      status: "PASS",
-      output: dataFusion(metrics)
+      platform: fused.platform || rawContext.platform,
+      metrics: fused.metrics || rawContext.metrics,
+      history: fused.history || [],
+      timestamp: Date.now(),
+      source: 'dataFusionEngine'
     };
   }
-}
+};
 
-module.exports = { DataFusionEngine };
+module.exports = DataFusionEngine;
