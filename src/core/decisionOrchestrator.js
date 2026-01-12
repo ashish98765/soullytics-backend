@@ -1,54 +1,47 @@
 // src/core/decisionOrchestrator.js
 
-const DataFusionEngine = require("../engines/adsCode00.dataFusion");
-const DataTrustEngine = require("../engines/dataTrust.engine");
-const ObjectiveBudgetEngine = require("../engines/objectiveBudget.engine");
-const PlatformRulesEngine = require("../engines/platformRules.engine");
-const CreativeIntelligenceEngine = require("../engines/creativeIntelligence.engine");
-const FunnelIntegrityEngine = require("../engines/funnelIntegrity.engine");
-const CapitalProtectionEngine = require("../engines/capitalProtection.engine");
-const ScalingReadinessEngine = require("../engines/scalingReadiness.engine");
-const PredictionSimulationEngine = require("../engines/predictionSimulation.engine");
-const DecisionEngine = require("../engines/decision.engine");
-const ExplainabilityEngine = require("../engines/explainabilityEngine");
+const DataFusionEngine = require("./dataFusionEngine");
+const ObjectiveBudgetEngine = require("./objectiveBudget.engine");
+const PlatformRulesEngine = require("./platformRules.engine");
+const CreativeIntelligenceEngine = require("./creativeIntelligence.engine");
+const FunnelIntegrityEngine = require("./funnelIntegrity.engine");
+const CapitalProtectionEngine = require("./capitalProtection.engine");
+const ScalingReadinessEngine = require("./scalingReadiness.engine");
+const PredictionSimulationEngine = require("./predictionSimulation.engine");
+const ExplainabilityEngine = require("./explainabilityEngine");
+const DecisionEngine = require("./decisionEngine");
 
 async function decisionOrchestrator(rawContext = {}) {
-  const context = await DataFusionEngine.run(rawContext);
+  const context = DataFusionEngine.run(rawContext);
 
-  const dataTrust = await DataTrustEngine.run(context);
-  if (!dataTrust.trusted) {
-    return earlyExit("PAUSE", "Data not reliable yet");
-  }
-
-  const objectiveBudget = await ObjectiveBudgetEngine.run(context);
+  const objectiveBudget = ObjectiveBudgetEngine.run(context);
   if (!objectiveBudget.valid) {
     return earlyExit("STOP", "Objective or budget invalid");
   }
 
-  const platformRules = await PlatformRulesEngine.run(context);
+  const platformRules = PlatformRulesEngine.run(context);
   if (!platformRules.allowed) {
     return earlyExit("STOP", "Platform rules violation");
   }
 
-  const creativeHealth = await CreativeIntelligenceEngine.run(context);
-  const funnelHealth = await FunnelIntegrityEngine.run(context);
+  const creativeHealth = CreativeIntelligenceEngine.run(context);
+  const funnelHealth = FunnelIntegrityEngine.run(context);
 
-  const capitalSafety = await CapitalProtectionEngine.run(context);
+  const capitalSafety = CapitalProtectionEngine.run(context);
   if (!capitalSafety.safe) {
     return earlyExit("STOP", "Capital at high risk");
   }
 
-  const scaling = await ScalingReadinessEngine.run(context);
+  const scaling = ScalingReadinessEngine.run(context);
 
-  const prediction = await PredictionSimulationEngine.run({
+  const prediction = PredictionSimulationEngine.run({
     context,
     creativeHealth,
     funnelHealth,
     scaling
   });
 
-  const decision = await DecisionEngine.run({
-    dataTrust,
+  const decision = DecisionEngine.run({
     objectiveBudget,
     platformRules,
     creativeHealth,
@@ -58,7 +51,7 @@ async function decisionOrchestrator(rawContext = {}) {
     prediction
   });
 
-  const explanation = await ExplainabilityEngine.run({
+  const explanation = ExplainabilityEngine.run({
     decision,
     signals: {
       creativeHealth,
@@ -90,4 +83,4 @@ function earlyExit(action, reason) {
   };
 }
 
-module.exports = decisionOrchestrator;
+module.exports = { decisionOrchestrator };
