@@ -1,38 +1,44 @@
 // src/core/decisionOrchestrator.js
 
-// ===============================
-// IMPORT CORE ENGINES
-// ===============================
-const DataTrustEngine = require("./engines/dataTrust.engine");
-const AdLogicValidityEngine = require("./engines/adLogicValidity.engine");
-const CreativeHealthEngine = require("./engines/creativeHealth.engine");
-const CapitalSafetyEngine = require("./engines/capitalSafety.engine");
-const ScalingReadinessEngine = require("./engines/scalingReadiness.engine");
-const FutureRiskEngine = require("./engines/futureRisk.engine");
-const HumanBiasControlEngine = require("./engines/humanBias.engine");
-const SystemStabilityEngine = require("./engines/systemStability.engine");
-const LearningMemoryEngine = require("./engines/learningMemory.engine");
-const DecisionAuthorityEngine = require("./engines/decisionAuthority.engine");
-const DecisionExplanationEngine = require("./engines/decisionExplanation.engine");
-const ActionGuidanceEngine = require("./engines/actionGuidance.engine");
+// ================================
+// IMPORT ENGINES (CORRECT PATHS)
+// ================================
+const DataTrustEngine = require('../engines/dataTrust.engine');
+const AdLogicValidityEngine = require('../engines/adLogicValidity.engine');
+const CreativeHealthEngine = require('../engines/creativeHealth.engine');
+const CapitalSafetyEngine = require('../engines/capitalSafety.engine');
+const ScalingReadinessEngine = require('../engines/scalingReadiness.engine');
+const FutureRiskEngine = require('../engines/futureRisk.engine');
+const HumanBiasControlEngine = require('../engines/humanBias.engine');
+const SystemStabilityEngine = require('../engines/systemStability.engine');
+const LearningMemoryEngine = require('../engines/learningMemory.engine');
+const DecisionAuthorityEngine = require('../engines/decisionAuthority.engine');
+const DecisionExplanationEngine = require('../engines/decisionExplanation.engine');
+const ActionGuidanceEngine = require('../engines/actionGuidance.engine');
 
-// ===============================
-// SAFETY HELPERS
-// ===============================
+// ================================
+// SAFE ENGINE RUNNER
+// ================================
 async function safeRun(engine, context, fallback) {
   try {
+    if (!engine || typeof engine.run !== 'function') {
+      throw new Error('Invalid engine interface');
+    }
     return await engine.run(context);
   } catch (err) {
     return fallback(err);
   }
 }
 
+// ================================
+// NORMALIZERS
+// ================================
 function normalizeConfidence(confidence) {
-  if (typeof confidence === "number") {
-    return Math.min(1, Math.max(0, confidence));
+  if (typeof confidence === 'number') {
+    return Math.max(0, Math.min(1, confidence));
   }
-  if (confidence === "HIGH") return 0.85;
-  if (confidence === "MEDIUM") return 0.6;
+  if (confidence === 'HIGH') return 0.85;
+  if (confidence === 'MEDIUM') return 0.6;
   return 0.35;
 }
 
@@ -40,26 +46,19 @@ function earlyExit({ decision, reason }) {
   return {
     decision,
     confidence: 0.3,
-    risk: "HIGH",
+    risk: 'HIGH',
     why: [reason],
-    moneyAdvice: "Do not increase budget",
-    ifIgnored: "High probability of loss"
+    moneyAdvice: 'Do not increase budget',
+    ifIgnored: 'High probability of loss'
   };
 }
 
-// ===============================
+// ================================
 // MAIN ORCHESTRATOR
-// ===============================
+// ================================
 async function decisionOrchestrator(context = {}) {
-  /**
-   * context contains:
-   * - platform (google | meta)
-   * - metrics (CTR, CPC, CPA, ROAS, spend, impressions, time)
-   * - historicalData (optional)
-   * - userProfile (risk appetite, budget size)
-   */
 
-  // ---- STEP 1: TRUST THE DATA ----
+  // STEP 1: DATA TRUST
   const dataTrust = await safeRun(
     DataTrustEngine,
     context,
@@ -68,12 +67,12 @@ async function decisionOrchestrator(context = {}) {
 
   if (!dataTrust.trusted) {
     return earlyExit({
-      decision: "PAUSE",
-      reason: "Data not reliable yet"
+      decision: 'PAUSE',
+      reason: 'Data not reliable yet'
     });
   }
 
-  // ---- STEP 2: BASIC AD LOGIC ----
+  // STEP 2: AD LOGIC
   const adLogic = await safeRun(
     AdLogicValidityEngine,
     context,
@@ -82,19 +81,19 @@ async function decisionOrchestrator(context = {}) {
 
   if (!adLogic.valid) {
     return earlyExit({
-      decision: "STOP",
-      reason: "Ad setup invalid"
+      decision: 'STOP',
+      reason: 'Ad setup invalid'
     });
   }
 
-  // ---- STEP 3: CREATIVE HEALTH ----
+  // STEP 3: CREATIVE HEALTH
   const creativeHealth = await safeRun(
     CreativeHealthEngine,
     context,
-    () => ({ score: 0.3, status: "UNSTABLE" })
+    () => ({ score: 0.3, status: 'UNSTABLE' })
   );
 
-  // ---- STEP 4: CAPITAL SAFETY ----
+  // STEP 4: CAPITAL SAFETY
   const capitalSafety = await safeRun(
     CapitalSafetyEngine,
     context,
@@ -103,40 +102,40 @@ async function decisionOrchestrator(context = {}) {
 
   if (!capitalSafety.safe) {
     return earlyExit({
-      decision: "STOP",
-      reason: "Capital at risk"
+      decision: 'STOP',
+      reason: 'Capital at risk'
     });
   }
 
-  // ---- STEP 5: SCALING READINESS ----
+  // STEP 5: SCALING READINESS
   const scalingReadiness = await safeRun(
     ScalingReadinessEngine,
     context,
     () => ({ ready: false, score: 0.4 })
   );
 
-  // ---- STEP 6: FUTURE RISK ----
+  // STEP 6: FUTURE RISK
   const futureRisk = await safeRun(
     FutureRiskEngine,
     context,
-    () => ({ level: "HIGH", ifIgnoredImpact: "Loss likely" })
+    () => ({ level: 'HIGH', ifIgnoredImpact: 'Loss likely' })
   );
 
-  // ---- STEP 7: HUMAN BIAS CHECK ----
+  // STEP 7: HUMAN BIAS
   const humanBias = await safeRun(
     HumanBiasControlEngine,
     context,
     () => ({ biasDetected: false })
   );
 
-  // ---- STEP 8: SYSTEM STABILITY ----
+  // STEP 8: SYSTEM STABILITY
   const systemStability = await safeRun(
     SystemStabilityEngine,
     context,
     () => ({ stable: true })
   );
 
-  // ---- STEP 9: LEARNING & MEMORY ----
+  // STEP 9: LEARNING & MEMORY
   const learningMemory = await safeRun(
     LearningMemoryEngine,
     {
@@ -151,7 +150,7 @@ async function decisionOrchestrator(context = {}) {
     () => ({ learned: false })
   );
 
-  // ---- STEP 10: FINAL DECISION AUTHORITY ----
+  // STEP 10: FINAL AUTHORITY
   const authorityDecision = await safeRun(
     DecisionAuthorityEngine,
     {
@@ -165,10 +164,10 @@ async function decisionOrchestrator(context = {}) {
       systemStability,
       learningMemory
     },
-    () => ({ decision: "PAUSE", confidence: "LOW" })
+    () => ({ decision: 'PAUSE', confidence: 'LOW' })
   );
 
-  // ---- STEP 11: EXPLANATION ----
+  // STEP 11: EXPLANATION
   const explanation = await safeRun(
     DecisionExplanationEngine,
     {
@@ -179,10 +178,10 @@ async function decisionOrchestrator(context = {}) {
         futureRisk
       }
     },
-    () => ({ reasons: ["Decision based on limited data"] })
+    () => ({ reasons: ['Decision based on limited data'] })
   );
 
-  // ---- STEP 12: ACTION GUIDANCE ----
+  // STEP 12: ACTION GUIDANCE
   const actionGuidance = await safeRun(
     ActionGuidanceEngine,
     {
@@ -190,19 +189,17 @@ async function decisionOrchestrator(context = {}) {
       scalingReadiness,
       futureRisk
     },
-    () => ({ budgetAdvice: "Hold budget" })
+    () => ({ budgetAdvice: 'Hold budget' })
   );
 
-  // ===============================
-  // FINAL API RESPONSE (LOCKED SHAPE)
-  // ===============================
+  // FINAL RESPONSE (LOCKED CONTRACT)
   return {
-    decision: authorityDecision.decision,          // RUN | PAUSE | STOP | SCALE
+    decision: authorityDecision.decision,      // RUN | PAUSE | STOP | SCALE
     confidence: normalizeConfidence(authorityDecision.confidence),
-    risk: futureRisk.level,                         // LOW | MEDIUM | HIGH
-    why: explanation.reasons,                       // array of strings
-    moneyAdvice: actionGuidance.budgetAdvice,       // +20%, -30%, hold
-    ifIgnored: futureRisk.ifIgnoredImpact            // loss estimate / warning
+    risk: futureRisk.level,                    // LOW | MEDIUM | HIGH
+    why: explanation.reasons,                  // array of strings
+    moneyAdvice: actionGuidance.budgetAdvice,  // +20%, -30%, hold
+    ifIgnored: futureRisk.ifIgnoredImpact
   };
 }
 
