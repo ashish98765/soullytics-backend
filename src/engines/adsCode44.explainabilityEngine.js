@@ -1,48 +1,58 @@
-/**
- * adsCode44.explainabilityEngine.js
- * --------------------------------------------------
- * PURPOSE:
- * Explain WHY a decision was taken.
- * Builds trust and transparency.
- */
+const { engineResult } = require("../core/engineResult");
 
 class ExplainabilityEngine {
-  constructor(engineResults = []) {
-    this.engineResults = engineResults;
+  constructor(finalDecisionOutput) {
+    this.decision = finalDecisionOutput;
   }
 
-  run(finalDecision) {
-    const failed = this.engineResults.filter(r => r.status === "FAIL");
-    const warnings = this.engineResults.filter(r => r.status === "WARNING");
-    const passes = this.engineResults.filter(r => r.status === "PASS");
+  run() {
+    const { status, score, meta } = this.decision;
 
-    const topDrivers = [...failed, ...warnings]
-      .sort((a, b) => b.authority - a.authority)
-      .slice(0, 5)
-      .map(r => ({
-        engine: r.engine,
-        message: r.message,
-        impact: r.impact,
-        score: r.score
-      }));
-
-    return {
-      decision: finalDecision,
-      summary: {
-        failedEngines: failed.length,
-        warningEngines: warnings.length,
-        passedEngines: passes.length
-      },
-      primaryReasons: topDrivers,
-      explanation:
-        finalDecision === "KILL"
-          ? "Multiple high-authority engines detected capital risk."
-          : finalDecision === "PAUSE"
-          ? "Signals unstable. Waiting protects capital."
-          : finalDecision === "SCALE"
-          ? "Strong signals with controlled risk."
-          : "Performance acceptable but not scale-ready."
+    const explanation = {
+      decision: status,
+      confidence: Math.round(score * 100) + "%",
+      why: [],
+      risks: [],
+      protections: []
     };
+
+    if (meta.failures.length) {
+      explanation.why.push(
+        "Multiple high-authority engines failed. Continuing would violate capital protection rules."
+      );
+    }
+
+    if (meta.warnings.length) {
+      explanation.risks.push(
+        "Warning signals detected that may distort short-term performance."
+      );
+    }
+
+    if (score > 0.7) {
+      explanation.protections.push(
+        "Decision backed by statistically stable and reliable signals."
+      );
+    } else {
+      explanation.protections.push(
+        "Decision chosen to prevent loss under uncertainty."
+      );
+    }
+
+    meta.insights.forEach(i => {
+      explanation.why.push(
+        `[${i.engine}] ${i.message}`
+      );
+    });
+
+    return engineResult({
+      engine: "adsCode44.explainabilityEngine",
+      status: "PASS",
+      impact: "HIGH",
+      authority: 9,
+      score,
+      message: `Decision explanation generated`,
+      explanation
+    });
   }
 }
 
