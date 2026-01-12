@@ -2,29 +2,37 @@
 
 const express = require("express");
 const router = express.Router();
-const { supabase } = require("../lib/supabaseClient");
-const { DecisionOrchestrator } = require("../core/decisionOrchestrator");
 
-// ===============================
-// DEBUG / INTERNAL DECISION ENDPOINT
-// ===============================
+// ⚠️ Supabase optional hai – agar env/config nahi hai to bhi backend crash nahi karega
+let supabase = null;
+try {
+  supabase = require("../lib/supabaseClient").supabase;
+} catch (e) {
+  console.warn("Supabase not configured, skipping DB writes");
+}
+
+const decisionOrchestrator = require("../core/decisionOrchestrator");
+
+/**
+ * POST /api/decision/debug
+ * Internal decision execution (no auth yet)
+ */
 router.post("/decision/debug", async (req, res) => {
   try {
     const context = req.body || {};
 
-    const orchestrator = new DecisionOrchestrator();
-    const decision = orchestrator.run(context);
+    const decision = await decisionOrchestrator(context);
 
-    const { error } = await supabase.from("decisions").insert({
-      mode: "DEBUG",
-      final_decision: decision.finalDecision,
-      confidence: decision.confidence,
-      trace: decision.trace,
-      created_at: new Date().toISOString()
-    });
-
-    if (error) {
-      console.error("Supabase Insert Error:", error);
+    // Optional DB log
+    if (supabase) {
+      await supabase.from("decisions").insert({
+        mode: "DEBUG",
+        decision: decision.decision,
+        confidence: decision.confidence,
+        risk: decision.risk,
+        why: decision.why,
+        created_at: new Date().toISOString()
+      });
     }
 
     return res.json({
@@ -35,36 +43,20 @@ router.post("/decision/debug", async (req, res) => {
     console.error("Decision Debug Error:", err);
     return res.status(500).json({
       success: false,
-      error: err.message
+      error: err.message || "Decision engine failed"
     });
   }
 });
 
-// ===============================
-// DECISION HISTORY
-// ===============================
-router.get("/decision/history", async (req, res) => {
-  try {
-    const { data, error } = await supabase
-      .from("decisions")
-      .select("*")
-      .order("created_at", { ascending: false })
-      .limit(50);
-
-    if (error) throw error;
-
-    return res.json({
-      success: true,
-      count: data.length,
-      decisions: data
-    });
-  } catch (err) {
-    console.error("Decision History Error:", err);
-    return res.status(500).json({
-      success: false,
-      error: err.message
-    });
-  }
+/**
+ * GET /api/decision/health
+ */
+router.get("/decision/health", (_, res) => {
+  res.json({
+    status: "ok",
+    engine: "Soullytics Decision Engine",
+    time: new Date().toISOString()
+  });
 });
 
 module.exports = router;
