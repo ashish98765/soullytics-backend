@@ -1,205 +1,107 @@
 // src/core/decisionOrchestrator.js
 
-// ================================
-// IMPORT ENGINES (CORRECT PATHS)
-// ================================
-const DataTrustEngine = require('../engines/dataTrust.engine');
-const AdLogicValidityEngine = require('../engines/adLogicValidity.engine');
-const CreativeHealthEngine = require('../engines/creativeHealth.engine');
-const CapitalSafetyEngine = require('../engines/capitalSafety.engine');
-const ScalingReadinessEngine = require('../engines/scalingReadiness.engine');
-const FutureRiskEngine = require('../engines/futureRisk.engine');
-const HumanBiasControlEngine = require('../engines/humanBias.engine');
-const SystemStabilityEngine = require('../engines/systemStability.engine');
-const LearningMemoryEngine = require('../engines/learningMemory.engine');
-const DecisionAuthorityEngine = require('../engines/decisionAuthority.engine');
-const DecisionExplanationEngine = require('../engines/decisionExplanation.engine');
-const ActionGuidanceEngine = require('../engines/actionGuidance.engine');
+const DataFusionEngine = require('./dataFusionEngine');
+const DataTrustEngine = require('./dataTrust.engine');
+const ObjectiveBudgetEngine = require('./objectiveBudget.engine');
+const PlatformRulesEngine = require('./platformRules.engine');
+const CreativeIntelligenceEngine = require('./creativeIntelligence.engine');
+const FunnelIntegrityEngine = require('./funnelIntegrity.engine');
+const CapitalProtectionEngine = require('./capitalProtection.engine');
+const ScalingReadinessEngine = require('./scalingReadiness.engine');
+const PredictionSimulationEngine = require('./predictionSimulation.engine');
+const ExplainabilityEngine = require('./explainabilityEngine');
+const DecisionEngine = require('./decisionEngine');
 
-// ================================
-// SAFE ENGINE RUNNER
-// ================================
-async function safeRun(engine, context, fallback) {
-  try {
-    if (!engine || typeof engine.run !== 'function') {
-      throw new Error('Invalid engine interface');
-    }
-    return await engine.run(context);
-  } catch (err) {
-    return fallback(err);
+async function decisionOrchestrator(rawContext = {}) {
+  // STEP 0: DATA FUSION
+  const context = DataFusionEngine.run(rawContext);
+
+  // STEP 1: DATA TRUST
+  const dataTrust = DataTrustEngine.run(context);
+  if (!dataTrust.trusted) {
+    return earlyExit('PAUSE', 'Data not reliable yet');
   }
-}
 
-// ================================
-// NORMALIZERS
-// ================================
-function normalizeConfidence(confidence) {
-  if (typeof confidence === 'number') {
-    return Math.max(0, Math.min(1, confidence));
+  // STEP 2: OBJECTIVE & BUDGET LOGIC
+  const objectiveBudget = ObjectiveBudgetEngine.run(context);
+  if (!objectiveBudget.valid) {
+    return earlyExit('STOP', 'Objective or budget invalid');
   }
-  if (confidence === 'HIGH') return 0.85;
-  if (confidence === 'MEDIUM') return 0.6;
-  return 0.35;
-}
 
-function earlyExit({ decision, reason }) {
-  return {
+  // STEP 3: PLATFORM RULES
+  const platformRules = PlatformRulesEngine.run(context);
+  if (!platformRules.allowed) {
+    return earlyExit('STOP', 'Platform rules violation');
+  }
+
+  // STEP 4: CREATIVE INTELLIGENCE
+  const creativeHealth = CreativeIntelligenceEngine.run(context);
+
+  // STEP 5: FUNNEL INTEGRITY
+  const funnelHealth = FunnelIntegrityEngine.run(context);
+
+  // STEP 6: CAPITAL PROTECTION
+  const capitalSafety = CapitalProtectionEngine.run(context);
+  if (!capitalSafety.safe) {
+    return earlyExit('STOP', 'Capital at high risk');
+  }
+
+  // STEP 7: SCALING READINESS
+  const scaling = ScalingReadinessEngine.run(context);
+
+  // STEP 8: FUTURE SIMULATION
+  const prediction = PredictionSimulationEngine.run({
+    context,
+    creativeHealth,
+    funnelHealth,
+    scaling
+  });
+
+  // STEP 9: FINAL DECISION
+  const decision = DecisionEngine.run({
+    dataTrust,
+    objectiveBudget,
+    platformRules,
+    creativeHealth,
+    funnelHealth,
+    capitalSafety,
+    scaling,
+    prediction
+  });
+
+  // STEP 10: EXPLAINABILITY
+  const explanation = ExplainabilityEngine.run({
     decision,
-    confidence: 0.3,
-    risk: 'HIGH',
-    why: [reason],
-    moneyAdvice: 'Do not increase budget',
-    ifIgnored: 'High probability of loss'
+    signals: {
+      creativeHealth,
+      funnelHealth,
+      capitalSafety,
+      scaling,
+      prediction
+    }
+  });
+
+  // FINAL RESPONSE (LOCKED SHAPE)
+  return {
+    decision: decision.action,        // RUN | PAUSE | STOP | SCALE
+    confidence: decision.confidence,  // 0–1
+    risk: prediction.riskLevel,       // LOW | MEDIUM | HIGH
+    why: explanation.reasons,         // array of strings
+    moneyAdvice: decision.moneyMove, // +20%, -30%, HOLD
+    ifIgnored: prediction.ifIgnored   // loss / risk text
   };
 }
 
-// ================================
-// MAIN ORCHESTRATOR
-// ================================
-async function decisionOrchestrator(context = {}) {
+/* ================= HELPERS ================= */
 
-  // STEP 1: DATA TRUST
-  const dataTrust = await safeRun(
-    DataTrustEngine,
-    context,
-    () => ({ trusted: false })
-  );
-
-  if (!dataTrust.trusted) {
-    return earlyExit({
-      decision: 'PAUSE',
-      reason: 'Data not reliable yet'
-    });
-  }
-
-  // STEP 2: AD LOGIC
-  const adLogic = await safeRun(
-    AdLogicValidityEngine,
-    context,
-    () => ({ valid: false })
-  );
-
-  if (!adLogic.valid) {
-    return earlyExit({
-      decision: 'STOP',
-      reason: 'Ad setup invalid'
-    });
-  }
-
-  // STEP 3: CREATIVE HEALTH
-  const creativeHealth = await safeRun(
-    CreativeHealthEngine,
-    context,
-    () => ({ score: 0.3, status: 'UNSTABLE' })
-  );
-
-  // STEP 4: CAPITAL SAFETY
-  const capitalSafety = await safeRun(
-    CapitalSafetyEngine,
-    context,
-    () => ({ safe: false })
-  );
-
-  if (!capitalSafety.safe) {
-    return earlyExit({
-      decision: 'STOP',
-      reason: 'Capital at risk'
-    });
-  }
-
-  // STEP 5: SCALING READINESS
-  const scalingReadiness = await safeRun(
-    ScalingReadinessEngine,
-    context,
-    () => ({ ready: false, score: 0.4 })
-  );
-
-  // STEP 6: FUTURE RISK
-  const futureRisk = await safeRun(
-    FutureRiskEngine,
-    context,
-    () => ({ level: 'HIGH', ifIgnoredImpact: 'Loss likely' })
-  );
-
-  // STEP 7: HUMAN BIAS
-  const humanBias = await safeRun(
-    HumanBiasControlEngine,
-    context,
-    () => ({ biasDetected: false })
-  );
-
-  // STEP 8: SYSTEM STABILITY
-  const systemStability = await safeRun(
-    SystemStabilityEngine,
-    context,
-    () => ({ stable: true })
-  );
-
-  // STEP 9: LEARNING & MEMORY
-  const learningMemory = await safeRun(
-    LearningMemoryEngine,
-    {
-      context,
-      decisionSignals: {
-        creativeHealth,
-        capitalSafety,
-        scalingReadiness,
-        futureRisk
-      }
-    },
-    () => ({ learned: false })
-  );
-
-  // STEP 10: FINAL AUTHORITY
-  const authorityDecision = await safeRun(
-    DecisionAuthorityEngine,
-    {
-      dataTrust,
-      adLogic,
-      creativeHealth,
-      capitalSafety,
-      scalingReadiness,
-      futureRisk,
-      humanBias,
-      systemStability,
-      learningMemory
-    },
-    () => ({ decision: 'PAUSE', confidence: 'LOW' })
-  );
-
-  // STEP 11: EXPLANATION
-  const explanation = await safeRun(
-    DecisionExplanationEngine,
-    {
-      authorityDecision,
-      signals: {
-        creativeHealth,
-        capitalSafety,
-        futureRisk
-      }
-    },
-    () => ({ reasons: ['Decision based on limited data'] })
-  );
-
-  // STEP 12: ACTION GUIDANCE
-  const actionGuidance = await safeRun(
-    ActionGuidanceEngine,
-    {
-      authorityDecision,
-      scalingReadiness,
-      futureRisk
-    },
-    () => ({ budgetAdvice: 'Hold budget' })
-  );
-
-  // FINAL RESPONSE (LOCKED CONTRACT)
+function earlyExit(action, reason) {
   return {
-    decision: authorityDecision.decision,      // RUN | PAUSE | STOP | SCALE
-    confidence: normalizeConfidence(authorityDecision.confidence),
-    risk: futureRisk.level,                    // LOW | MEDIUM | HIGH
-    why: explanation.reasons,                  // array of strings
-    moneyAdvice: actionGuidance.budgetAdvice,  // +20%, -30%, hold
-    ifIgnored: futureRisk.ifIgnoredImpact
+    decision: action,
+    confidence: 0.3,
+    risk: 'HIGH',
+    why: [reason],
+    moneyAdvice: 'HOLD',
+    ifIgnored: 'High probability of loss'
   };
 }
 
