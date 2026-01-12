@@ -1,9 +1,9 @@
 /**
  * adsCode00.dataFusion.js
- * -----------------------------------
+ * -------------------------------------------------
  * PURPOSE:
  * Fuse raw ad metrics into clean, decision-ready signals.
- * No judgement. No bias. No decisions.
+ * No judgement. No decisions. Only truth + confidence.
  */
 
 function clamp(value, min = 0, max = 1) {
@@ -11,61 +11,121 @@ function clamp(value, min = 0, max = 1) {
 }
 
 function normalize(value, minIdeal, maxIdeal) {
+  if (value === null || value === undefined || isNaN(value)) return 0;
   if (value <= minIdeal) return 0;
   if (value >= maxIdeal) return 1;
   return (value - minIdeal) / (maxIdeal - minIdeal);
 }
 
 /**
- * Measures performance signal quality
+ * Strength of signal (performance quality)
  */
 function signalStrengthEngine({ ctr, cvr, roas }) {
-  const ctrScore = normalize(ctr, 0.5, 3);     // %
-  const cvrScore = normalize(cvr, 0.5, 5);     // %
+  const ctrScore  = normalize(ctr, 0.5, 3);   // %
+  const cvrScore  = normalize(cvr, 0.5, 5);   // %
   const roasScore = normalize(roas, 1, 4);
 
   return clamp((ctrScore + cvrScore + roasScore) / 3);
 }
 
 /**
- * Measures how unreliable the data is
+ * Data unreliability / noise
  */
-function noiseEngine({ impressions, dayCount }) {
-  const volumeScore = normalize(impressions, 1000, 10000);
-  const timeScore = normalize(dayCount, 3, 7);
+function noiseEngine({ impressions, daysRunning, volatility }) {
+  const volumeScore = normalize(impressions, 1000, 15000);
+  const timeScore   = normalize(daysRunning, 3, 10);
+  const volPenalty  = volatility ? clamp(volatility) : 0;
 
-  // Less volume + less time = more noise
-  return clamp(1 - (volumeScore + timeScore) / 2);
+  // Less volume + less time + high volatility = more noise
+  return clamp(1 - (volumeScore * 0.4 + timeScore * 0.4) + volPenalty * 0.2);
 }
 
 /**
- * Measures consistency & predictability
+ * Economic & outcome stability
  */
 function stabilityEngine({ cpa, roas }) {
-  const cpaScore = normalize(1 / cpa, 0.01, 0.05);
-  const roasScore = normalize(roas, 1, 3);
+  if (!cpa || cpa <= 0) return 0;
 
-  return clamp((cpaScore + roasScore) / 2);
+  const efficiencyScore = normalize(1 / cpa, 0.01, 0.05);
+  const roasScore       = normalize(roas, 1, 3);
+
+  return clamp((efficiencyScore + roasScore) / 2);
 }
 
-function readinessClassifier(signal, noise) {
-  if (signal > 0.7 && noise < 0.3) return "HIGH";
-  if (signal > 0.4 && noise < 0.5) return "MEDIUM";
+/**
+ * Learning phase awareness
+ */
+function learningStageEngine({ daysRunning, impressions }) {
+  if (daysRunning < 3 || impressions < 1000) return "COLD_START";
+  if (daysRunning < 7 || impressions < 5000) return "LEARNING";
+  return "STABLE";
+}
+
+/**
+ * Human-bias & illusion flags
+ */
+function biasFlagsEngine({ ctr, cvr, daysRunning, impressions }) {
+  return {
+    falsePositiveRisk:
+      ctr > 2 && cvr < 0.3 && daysRunning < 5,
+
+    vanityMetricTrap:
+      ctr > 2.5 && impressions < 2000,
+
+    lowDataRisk:
+      impressions < 1000 || daysRunning < 3
+  };
+}
+
+/**
+ * Confidence score (how much to trust outputs)
+ */
+function confidenceEngine(noise, stability, stage) {
+  let base = clamp((stability * 0.6) + ((1 - noise) * 0.4));
+
+  if (stage === "COLD_START") base *= 0.4;
+  if (stage === "LEARNING")   base *= 0.7;
+
+  return clamp(base);
+}
+
+/**
+ * Readiness classification
+ */
+function readinessClassifier(signal, confidence) {
+  if (confidence < 0.4) return "UNRELIABLE";
+  if (signal > 0.7 && confidence > 0.7) return "HIGH";
+  if (signal > 0.4) return "MEDIUM";
   return "LOW";
 }
 
 /**
  * MAIN EXPORT
  */
-module.exports = function dataFusionEngine(metrics) {
+module.exports = function dataFusionEngine(metrics = {}) {
   const signalStrength = signalStrengthEngine(metrics);
-  const noiseLevel = noiseEngine(metrics);
+  const noiseLevel     = noiseEngine(metrics);
   const stabilityScore = stabilityEngine(metrics);
+  const learningStage  = learningStageEngine(metrics);
+  const biasFlags      = biasFlagsEngine(metrics);
+  const confidence     = confidenceEngine(
+    noiseLevel,
+    stabilityScore,
+    learningStage
+  );
 
   return {
+    // Core fused signals
     signalStrength,
     noiseLevel,
     stabilityScore,
-    dataReadiness: readinessClassifier(signalStrength, noiseLevel)
+    confidence,
+
+    // Contextual truth
+    learningStage,
+    biasFlags,
+
+    // Final readiness (used by decision engine)
+    dataReadiness: readinessClassifier(signalStrength, confidence)
   };
 };
