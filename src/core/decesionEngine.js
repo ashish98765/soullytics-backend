@@ -1,14 +1,11 @@
-const { DecisionEngine } = require("../decision.engine");
+// src/core/decision.engine.js
 
-class DecisionCoreEngine {
-  constructor() {
-    this.engine = new DecisionEngine();
+function decisionEngine(fusionResult) {
+  if (!fusionResult.trusted) {
+    return { decision: 'PAUSE', confidence: 0.4 };
   }
 
-  run(results) {
-    results.flat().forEach(r => this.engine.register(r));
-    return this.engine.resolve();
-  }
+  return { decision: 'RUN', confidence: 0.8 };
 }
 
-module.exports = { DecisionCoreEngine };
+module.exports = decisionEngine;
