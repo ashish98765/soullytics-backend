@@ -1,130 +1,145 @@
 // src/core/decisionOrchestrator.js
 
-const { DecisionEngine } = require("../engines/decision.engine");
-const { buildDecisionTrace } = require("./decisionTrace");
-const { formatDecisionResponse } = require("./decisionResponseFormatter");
+// ================================
+// IMPORT CORE ENGINES
+// ================================
+const DataTrustEngine = require('./engines/dataTrust.engine');
+const AdLogicValidityEngine = require('./engines/adLogicValidity.engine');
+const CreativeHealthEngine = require('./engines/creativeHealth.engine');
+const CapitalSafetyEngine = require('./engines/capitalSafety.engine');
+const ScalingReadinessEngine = require('./engines/scalingReadiness.engine');
+const FutureRiskEngine = require('./engines/futureRisk.engine');
+const HumanBiasControlEngine = require('./engines/humanBias.engine');
+const SystemStabilityEngine = require('./engines/systemStability.engine');
+const LearningMemoryEngine = require('./engines/learningMemory.engine');
+const DecisionAuthorityEngine = require('./engines/decisionAuthority.engine');
+const DecisionExplanationEngine = require('./engines/decisionExplanation.engine');
+const ActionGuidanceEngine = require('./engines/actionGuidance.engine');
 
-/* ================================
-   Core Engines (01–18)
-================================ */
+// ================================
+// MAIN ORCHESTRATOR
+// ================================
+async function decisionOrchestrator(context) {
+  /**
+   * context contains:
+   * - platform (google | meta)
+   * - metrics (CTR, CPC, CPA, ROAS, spend, impressions, time)
+   * - historicalData (optional)
+   * - userProfile (risk appetite, budget size)
+   */
 
-const { ObjectiveClarityEngine } = require("../engines/adsCode01.objectiveClarity");
-const { BudgetRealityEngine } = require("../engines/adsCode02.budgetReality");
-const { PlatformSelectionEngine } = require("../engines/adsCode03.platformSelection");
-const { AudienceTemperatureEngine } = require("../engines/adsCode04.audienceTemperature");
-const { MessageAudienceMatchEngine } = require("../engines/adsCode05.messageAudienceMatch");
-const { HookStrengthEngine } = require("../engines/adsCode06.hookStrength");
-const { EmotionalIntensityEngine } = require("../engines/adsCode07.emotionalIntensity");
-const { CTAAggressionEngine } = require("../engines/adsCode08.ctaAggression");
-const { CreativeFormatEngine } = require("../engines/adsCode09.creativeFormat");
-const { PlatformRulesEngine } = require("../engines/adsCode10.platformRules");
-const { TestingStrategyEngine } = require("../engines/adsCode11.testingStrategy");
-const { BudgetSplitEngine } = require("../engines/adsCode12.budgetSplit");
-const { CreativeFatigueEngine } = require("../engines/adsCode13.creativeFatigue");
-const { PerformanceExpectationEngine } = require("../engines/adsCode14.performanceExpectation");
-const { RiskDetectionEngine } = require("../engines/adsCode15.riskDetection");
-const { ScalingReadinessEngine } = require("../engines/adsCode16.scalingReadiness");
-const { PlatformBiasEngine } = require("../engines/adsCode17.platformBias");
-const { StopLossEngine } = require("../engines/adsCode18.stopLoss");
-
-/* ================================
-   Final Gate
-================================ */
-
-const { FinalAdsComposer } = require("../engines/adsCode19.finalComposer");
-
-/* ================================
-   Intelligence Layer (21–30)
-================================ */
-
-const { RealityCheckEngine } = require("../engines/adsCode21.realityCheck");
-const { FeedbackLoopEngine } = require("../engines/adsCode22.feedbackLoop");
-const { LearningMemoryEngine } = require("../engines/adsCode23.learningMemory");
-const { FunnelIntegrityEngine } = require("../engines/adsCode25.funnelIntegrity");
-const { BurnRateEngine } = require("../engines/adsCode26.burnRate");
-const { AudienceSaturationEngine } = require("../engines/adsCode27.audienceSaturation");
-const { CreativeNoveltyEngine } = require("../engines/adsCode28.creativeNovelty");
-const { HumanOverrideRiskEngine } = require("../engines/adsCode29.humanOverrideRisk");
-const { FounderRiskProfileEngine } = require("../engines/adsCode30.founderRiskProfile");
-
-/* ================================
-   Decision Orchestrator
-================================ */
-
-class DecisionOrchestrator {
-  constructor() {
-    this.decisionEngine = new DecisionEngine();
+  // ---- STEP 1: TRUST THE DATA ----
+  const dataTrust = await DataTrustEngine.run(context);
+  if (!dataTrust.trusted) {
+    return earlyExit({
+      decision: 'PAUSE',
+      reason: 'Data not reliable yet',
+      dataTrust
+    });
   }
 
-  run(context = {}) {
-    this.decisionEngine.reset();
+  // ---- STEP 2: BASIC AD LOGIC ----
+  const adLogic = await AdLogicValidityEngine.run(context);
+  if (!adLogic.valid) {
+    return earlyExit({
+      decision: 'STOP',
+      reason: 'Ad setup invalid',
+      adLogic
+    });
+  }
 
-    const engines = [
-      // Core logic
-      ObjectiveClarityEngine,
-      BudgetRealityEngine,
-      PlatformSelectionEngine,
-      AudienceTemperatureEngine,
-      MessageAudienceMatchEngine,
-      HookStrengthEngine,
-      EmotionalIntensityEngine,
-      CTAAggressionEngine,
-      CreativeFormatEngine,
-      PlatformRulesEngine,
-      TestingStrategyEngine,
-      BudgetSplitEngine,
-      CreativeFatigueEngine,
-      PerformanceExpectationEngine,
-      RiskDetectionEngine,
-      ScalingReadinessEngine,
-      PlatformBiasEngine,
-      StopLossEngine,
+  // ---- STEP 3: CREATIVE HEALTH ----
+  const creativeHealth = await CreativeHealthEngine.run(context);
 
-      // Intelligence layer
-      RealityCheckEngine,
-      FeedbackLoopEngine,
-      LearningMemoryEngine,
-      FunnelIntegrityEngine,
-      BurnRateEngine,
-      AudienceSaturationEngine,
-      CreativeNoveltyEngine,
-      HumanOverrideRiskEngine,
-      FounderRiskProfileEngine
-    ];
+  // ---- STEP 4: CAPITAL SAFETY ----
+  const capitalSafety = await CapitalSafetyEngine.run(context);
+  if (!capitalSafety.safe) {
+    return earlyExit({
+      decision: 'STOP',
+      reason: 'Capital at risk',
+      capitalSafety
+    });
+  }
 
-    /* -------- Execute engines -------- */
-    for (const Engine of engines) {
-      const engineInstance = new Engine(context);
-      const result = engineInstance.run();
-      this.decisionEngine.register(result);
+  // ---- STEP 5: SCALING READINESS ----
+  const scalingReadiness = await ScalingReadinessEngine.run(context);
+
+  // ---- STEP 6: FUTURE RISK ----
+  const futureRisk = await FutureRiskEngine.run(context);
+
+  // ---- STEP 7: HUMAN BIAS CHECK ----
+  const humanBias = await HumanBiasControlEngine.run(context);
+
+  // ---- STEP 8: SYSTEM STABILITY ----
+  const systemStability = await SystemStabilityEngine.run(context);
+
+  // ---- STEP 9: LEARNING & MEMORY ----
+  const learningMemory = await LearningMemoryEngine.run({
+    context,
+    decisionSignals: {
+      creativeHealth,
+      capitalSafety,
+      scalingReadiness,
+      futureRisk
     }
+  });
 
-    /* -------- Base aggregation -------- */
-    const baseDecision = this.decisionEngine.resolve();
+  // ---- STEP 10: FINAL DECISION ----
+  const authorityDecision = await DecisionAuthorityEngine.run({
+    dataTrust,
+    adLogic,
+    creativeHealth,
+    capitalSafety,
+    scalingReadiness,
+    futureRisk,
+    humanBias,
+    systemStability,
+    learningMemory
+  });
 
-    /* -------- Final decision gate -------- */
-    const finalComposer = new FinalAdsComposer({
-      context,
-      baseDecision,
-      engineResults: this.decisionEngine.results
-    });
+  // ---- STEP 11: EXPLANATION ----
+  const explanation = await DecisionExplanationEngine.run({
+    authorityDecision,
+    signals: {
+      creativeHealth,
+      capitalSafety,
+      futureRisk
+    }
+  });
 
-    const finalResult = finalComposer.run();
+  // ---- STEP 12: ACTION GUIDANCE ----
+  const actionGuidance = await ActionGuidanceEngine.run({
+    authorityDecision,
+    scalingReadiness,
+    futureRisk
+  });
 
-    /* -------- Explainability -------- */
-    const trace = buildDecisionTrace(
-      [...this.decisionEngine.results, finalResult],
-      finalResult.status,
-      finalResult.score
-    );
-
-    /* -------- Canonical API response -------- */
-    return formatDecisionResponse({
-      finalResult,
-      engineResults: this.decisionEngine.results,
-      trace
-    });
-  }
+  // ================================
+  // FINAL RESPONSE (LOCKED SHAPE)
+  // ================================
+  return {
+    decision: authorityDecision.decision,          // RUN | PAUSE | STOP | SCALE
+    confidence: authorityDecision.confidence,      // %
+    risk: futureRisk.level,                         // LOW | MEDIUM | HIGH
+    why: explanation.reasons,                       // array of strings
+    moneyAdvice: actionGuidance.budgetAdvice,      // +20%, -30%, hold
+    ifIgnored: futureRisk.ifIgnoredImpact           // ₹ loss estimate
+  };
 }
 
-module.exports = { DecisionOrchestrator };
+// ================================
+// EARLY EXIT HANDLER
+// ================================
+function earlyExit({ decision, reason, ...signals }) {
+  return {
+    decision,
+    confidence: 'Low',
+    risk: 'HIGH',
+    why: [reason],
+    moneyAdvice: 'Do not increase budget',
+    ifIgnored: 'High probability of loss',
+    debug: signals // keep for logs, not UI
+  };
+}
+
+module.exports = decisionOrchestrator;
