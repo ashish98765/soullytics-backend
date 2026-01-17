@@ -1,28 +1,38 @@
-function decisionEngine(allResults = []) {
-  const failed = allResults.filter(r => r.status === "FAIL");
-  const warnings = allResults.filter(r => r.status === "WARNING");
+// src/core/decisionEngine.js
 
-  if (failed.length > 0) {
+class DecisionEngine {
+  static run({
+    objectiveBudget,
+    platformRules,
+    creativeHealth,
+    funnelHealth,
+    capitalSafety,
+    scaling,
+    prediction
+  }) {
+    // hard stops
+    if (!objectiveBudget.valid) {
+      return { action: "STOP", confidence: 0.3 };
+    }
+
+    if (!platformRules.allowed) {
+      return { action: "STOP", confidence: 0.3 };
+    }
+
+    if (!capitalSafety.safe) {
+      return { action: "STOP", confidence: 0.2 };
+    }
+
+    // predictive caution
+    if (prediction && prediction.riskLevel === "HIGH") {
+      return { action: "PAUSE", confidence: 0.5 };
+    }
+
     return {
-      action: "DO_NOT_RUN",
-      confidence: 0.2,
-      reasons: failed.map(f => f.message)
+      action: "RUN",
+      confidence: 0.8
     };
   }
-
-  if (warnings.length > 2) {
-    return {
-      action: "PAUSE",
-      confidence: 0.5,
-      reasons: warnings.map(w => w.message)
-    };
-  }
-
-  return {
-    action: "RUN",
-    confidence: 0.85,
-    reasons: ["Signals stable"]
-  };
 }
 
-module.exports = decisionEngine;
+module.exports = DecisionEngine;
