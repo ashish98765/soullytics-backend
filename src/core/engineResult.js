@@ -1,22 +1,16 @@
-// src/core/engineResult.js
-
 function engineResult({
   engine,
   status,
   score = null,
-  impact = "MEDIUM", // LOW | MEDIUM | HIGH
-  authority = 1,     // 1 (weak) → 5 (critical)
-  message,
-  data = {}
+  message = "",
+  meta = {}
 }) {
   return {
     engine,
-    status,       // PASS | WARNING | FAIL
-    score,        // numeric influence
-    impact,       // used by FinalComposer
-    authority,    // hierarchy power
+    status,
+    score,
     message,
-    data,
+    meta,
     timestamp: new Date().toISOString()
   };
 }
