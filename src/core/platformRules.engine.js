@@ -1,19 +1,18 @@
-const { PlatformSelectionEngine } = require("../adsCode03.platformSelection");
-const { PlatformRulesEngine } = require("../adsCode10.platformRules");
-const { PlatformBiasEngine } = require("../adsCode17.platformBias");
+// src/core/platformRules.engine.js
 
-class PlatformRulesCoreEngine {
-  constructor(context) {
-    this.context = context;
-  }
+const { adsCode03, adsCode10 } = require("../engines/adsCodeRegistry");
 
-  run() {
-    return [
-      new PlatformSelectionEngine(this.context).run(),
-      new PlatformRulesEngine(this.context).run(),
-      new PlatformBiasEngine(this.context).run()
-    ];
-  }
+function run(context = {}) {
+  const platformSelection = adsCode03.run(context);
+  const platformRules = adsCode10.run(context);
+
+  return {
+    allowed:
+      platformSelection.status !== "FAIL" &&
+      platformRules.status !== "FAIL",
+    platformSelection,
+    platformRules
+  };
 }
 
-module.exports = { PlatformRulesCoreEngine };
+module.exports = { run };
