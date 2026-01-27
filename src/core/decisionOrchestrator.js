@@ -1,84 +1,83 @@
 // src/core/decisionOrchestrator.js
 
-const dataFusionEngine = require("./dataFusionEngine");
-const objectiveBudgetEngine = require("./objectiveBudget.engine");
-const platformRulesEngine = require("./platformRules.engine");
-const creativeIntelligenceEngine = require("./creativeIntelligence.engine");
-const funnelIntegrityEngine = require("./funnelIntegrity.engine");
-const capitalProtectionEngine = require("./capitalProtection.engine");
-const scalingReadinessEngine = require("./scalingReadiness.engine");
-const predictionSimulationEngine = require("./predictionSimulation.engine");
-const explainabilityEngine = require("./explainabilityEngine");
+const { buildContext } = require("./contextBuilder");
 const DecisionEngine = require("./decisionEngine");
+const DecisionResponseFormatter = require("./decisionResponseFormatter");
+const DecisionTrace = require("./decisionTrace");
 
-/**
- * MAIN ORCHESTRATOR
- * This file only:
- * - calls core engines
- * - collects results
- * - passes to DecisionEngine
- * NO adsCode direct calls here
- */
-async function decisionOrchestrator(rawContext = {}) {
-  try {
-    // 1️⃣ DATA FUSION
-    const fusedContext = await dataFusionEngine(rawContext);
+// Core Engines
+const AudienceIntelligenceEngine = require("./audienceIntelligence.engine");
+const CreativeIntelligenceEngine = require("./creativeIntelligence.engine");
+const CapitalProtectionEngine = require("./capitalProtection.engine");
+const FunnelIntegrityEngine = require("./funnelIntegrity.engine");
+const PerformanceRealityEngine = require("./performanceReality.engine");
+const PlatformRulesEngine = require("./platformRules.engine");
+const ObjectiveBudgetEngine = require("./objectiveBudget.engine");
+const ScalingReadinessEngine = require("./scalingReadiness.engine");
+const PredictionSimulationEngine = require("./predictionSimulation.engine");
+const ExplainabilityEngine = require("./explainabilityEngine");
 
-    // 2️⃣ CORE ENGINE SIGNALS
-    const objectiveBudget = objectiveBudgetEngine.run(fusedContext);
-    const platformRules = platformRulesEngine.run(fusedContext);
-    const creativeHealth = creativeIntelligenceEngine.run(fusedContext);
-    const funnelHealth = funnelIntegrityEngine.run(fusedContext);
-    const capitalSafety = capitalProtectionEngine.run(fusedContext);
-    const scaling = scalingReadinessEngine.run(fusedContext);
-    const prediction = predictionSimulationEngine.run({
-      context: fusedContext,
-      creativeHealth,
-      funnelHealth,
-      scaling
-    });
+async function decisionOrchestrator(rawInput = {}) {
+  // 1️⃣ Build SAFE context (no undefined explosions)
+  const context = buildContext(rawInput);
 
-    // 3️⃣ FINAL DECISION
-    const decision = DecisionEngine.run({
-      objectiveBudget,
-      platformRules,
-      creativeHealth,
-      funnelHealth,
-      capitalSafety,
-      scaling,
-      prediction
-    });
+  // 2️⃣ Trace init (debug + explainability)
+  const trace = new DecisionTrace(context);
 
-    // 4️⃣ EXPLAINABILITY
-    const explanation = explainabilityEngine.run({
-      decision,
-      signals: {
-        objectiveBudget,
-        platformRules,
-        creativeHealth,
-        funnelHealth,
-        capitalSafety,
-        scaling,
-        prediction
+  // 3️⃣ Decision engine (aggregator)
+  const decisionEngine = new DecisionEngine();
+
+  // 4️⃣ Core engines list (ORDER MATTERS)
+  const coreEngines = [
+    new AudienceIntelligenceEngine(context),
+    new CreativeIntelligenceEngine(context),
+    new CapitalProtectionEngine(context),
+    new FunnelIntegrityEngine(context),
+    new PerformanceRealityEngine(context),
+    new PlatformRulesEngine(context),
+    new ObjectiveBudgetEngine(context),
+    new ScalingReadinessEngine(context),
+    new PredictionSimulationEngine(context),
+    new ExplainabilityEngine(context)
+  ];
+
+  // 5️⃣ Run all core engines safely
+  for (const engine of coreEngines) {
+    try {
+      const results = engine.run();
+
+      // Some engines return array, some single
+      const normalized = Array.isArray(results) ? results : [results];
+
+      for (const result of normalized) {
+        if (!result) continue;
+        decisionEngine.register(result);
+        trace.record(result);
       }
-    });
+    } catch (err) {
+      // HARD FAIL SAFE
+      decisionEngine.register({
+        engine: engine.constructor.name,
+        status: "FAIL",
+        impact: "HIGH",
+        score: 0,
+        message: err.message || "Engine crashed"
+      });
 
-    // 5️⃣ FINAL RESPONSE
-    return {
-      decision: decision.action,           // RUN | PAUSE | STOP
-      confidence: decision.confidence,     // 0–1
-      reasons: explanation.reasons || [],
-      risk: prediction?.riskLevel || "UNKNOWN"
-    };
-  } catch (error) {
-    // HARD FAIL SAFE
-    return {
-      decision: "STOP",
-      confidence: 0.1,
-      reasons: ["System error in decision orchestration"],
-      error: error.message
-    };
+      trace.recordError(engine.constructor.name, err);
+    }
   }
+
+  // 6️⃣ Resolve final decision
+  const finalDecision = decisionEngine.resolve();
+
+  // 7️⃣ Format response
+  const response = DecisionResponseFormatter.format({
+    decision: finalDecision,
+    trace: trace.export()
+  });
+
+  return response;
 }
 
-module.exports = { decisionOrchestrator };
+module.exports = decisionOrchestrator;
