@@ -3,10 +3,10 @@ const app = express();
 
 app.use(express.json());
 
-// 🔗 Routes
+// Routes
 const decisionRoutes = require("./src/routes/decision.routes");
 
-// Mount routes
+// Mount
 app.use("/api", decisionRoutes);
 
 // Health check
