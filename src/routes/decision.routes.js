@@ -8,7 +8,7 @@ router.post("/decision", async (req, res) => {
     const result = await decisionOrchestrator(req.body);
     res.json({ success: true, data: result });
   } catch (err) {
-    console.error(err);
+    console.error("DECISION ERROR:", err);
     res.status(500).json({
       success: false,
       error: err.message
