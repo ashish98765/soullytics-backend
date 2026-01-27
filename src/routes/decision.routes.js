@@ -1,21 +1,17 @@
 const express = require("express");
 const router = express.Router();
 
-const { decisionOrchestrator } = require("../core/decisionOrchestrator");
+const decisionOrchestrator = require("../core/decisionOrchestrator");
 
-// POST /api/decision
 router.post("/decision", async (req, res) => {
   try {
     const result = await decisionOrchestrator(req.body);
-    res.json({
-      success: true,
-      ...result
-    });
+    res.json({ success: true, data: result });
   } catch (err) {
-    console.error("Decision error:", err);
+    console.error(err);
     res.status(500).json({
       success: false,
-      error: err.message || "Decision failed"
+      error: err.message
     });
   }
 });
