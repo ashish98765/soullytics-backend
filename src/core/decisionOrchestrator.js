@@ -1,6 +1,7 @@
 // src/core/decisionOrchestrator.js
 
 const DataFusionEngine = require("./dataFusionEngine");
+
 const ObjectiveBudgetEngine = require("./objectiveBudget.engine");
 const PlatformRulesEngine = require("./platformRules.engine");
 const CreativeIntelligenceEngine = require("./creativeIntelligence.engine");
@@ -12,35 +13,43 @@ const DecisionEngine = require("./decisionEngine");
 const ExplainabilityEngine = require("./explainabilityEngine");
 
 async function decisionOrchestrator(rawContext = {}) {
+  // 1. Data fusion
   const context = DataFusionEngine.run(rawContext);
 
+  // 2. Objective & budget
   const objectiveBudget = ObjectiveBudgetEngine.run(context);
   if (!objectiveBudget.valid) {
     return earlyExit("STOP", "Objective or budget invalid");
   }
 
+  // 3. Platform rules
   const platformRules = PlatformRulesEngine.run(context);
   if (!platformRules.allowed) {
     return earlyExit("STOP", "Platform rules violation");
   }
 
+  // 4. Creative & funnel
   const creativeHealth = CreativeIntelligenceEngine.run(context);
   const funnelHealth = FunnelIntegrityEngine.run(context);
 
+  // 5. Capital protection
   const capitalSafety = CapitalProtectionEngine.run(context);
   if (!capitalSafety.safe) {
     return earlyExit("STOP", "Capital at high risk");
   }
 
+  // 6. Scaling
   const scaling = ScalingReadinessEngine.run(context);
 
+  // 7. Prediction
   const prediction = PredictionSimulationEngine.run({
     context,
     creativeHealth,
     funnelHealth,
-    scaling
+    scaling,
   });
 
+  // 8. Decision
   const decision = DecisionEngine.run({
     objectiveBudget,
     platformRules,
@@ -48,9 +57,10 @@ async function decisionOrchestrator(rawContext = {}) {
     funnelHealth,
     capitalSafety,
     scaling,
-    prediction
+    prediction,
   });
 
+  // 9. Explainability
   const explanation = ExplainabilityEngine.run({
     decision,
     signals: {
@@ -58,8 +68,8 @@ async function decisionOrchestrator(rawContext = {}) {
       funnelHealth,
       capitalSafety,
       scaling,
-      prediction
-    }
+      prediction,
+    },
   });
 
   return {
@@ -68,10 +78,11 @@ async function decisionOrchestrator(rawContext = {}) {
     risk: prediction.riskLevel,
     why: explanation.reasons,
     moneyAdvice: decision.moneyMove,
-    ifIgnored: prediction.ifIgnored
+    ifIgnored: prediction.ifIgnored,
   };
 }
 
+// Early exit helper
 function earlyExit(action, reason) {
   return {
     decision: action,
@@ -79,8 +90,8 @@ function earlyExit(action, reason) {
     risk: "HIGH",
     why: [reason],
     moneyAdvice: "HOLD",
-    ifIgnored: "High probability of loss"
+    ifIgnored: "High probability of loss",
   };
 }
 
-module.exports = decisionOrchestrator; // ✅ IMPORTANT
+module.exports = decisionOrchestrator;
