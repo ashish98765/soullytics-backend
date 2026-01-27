@@ -6,32 +6,16 @@ app.use(express.json({ limit: "2mb" }));
 
 // ===== Health Check =====
 app.get("/", (req, res) => {
-  res.status(200).send("Soullytics Backend is running");
+  res.status(200).send("Soullytics Backend is LIVE 🚀");
 });
 
-// ===== Decision Orchestrator =====
-const decisionOrchestrator = require("./src/core/decisionOrchestrator");
+// ===== Routes =====
+const decisionRoutes = require("./src/routes/decision.routes");
+app.use("/api/decision", decisionRoutes);
 
-// POST /decision
-app.post("/decision", async (req, res) => {
-  try {
-    const input = req.body || {};
-
-    const result = await decisionOrchestrator(input);
-
-    res.status(200).json({
-      success: true,
-      data: result
-    });
-  } catch (err) {
-    console.error("Decision error:", err);
-
-    res.status(500).json({
-      success: false,
-      error: err.message || "Decision engine crashed"
-    });
-  }
-});
+// ===== Global Error Handler =====
+const errorHandler = require("./src/middleware/errorHandler");
+app.use(errorHandler);
 
 // ===== Server =====
 const PORT = process.env.PORT || 3000;
