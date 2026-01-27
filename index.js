@@ -1,25 +1,21 @@
 const express = require("express");
 const app = express();
 
-// ===== Middleware =====
-app.use(express.json({ limit: "2mb" }));
+app.use(express.json());
 
-// ===== Health Check =====
+// 🔗 Routes
+const decisionRoutes = require("./src/routes/decision.routes");
+
+// Mount routes
+app.use("/api", decisionRoutes);
+
+// Health check
 app.get("/", (req, res) => {
-  res.status(200).send("Soullytics Backend is LIVE 🚀");
+  res.send("Soullytics Backend is running");
 });
 
-// ===== Routes =====
-const decisionRoutes = require("./src/routes/decision.routes");
-app.use("/api/decision", decisionRoutes);
-
-// ===== Global Error Handler =====
-const errorHandler = require("./src/middleware/errorHandler");
-app.use(errorHandler);
-
-// ===== Server =====
+// Server
 const PORT = process.env.PORT || 3000;
-
 app.listen(PORT, () => {
-  console.log(`✅ Soullytics backend running on port ${PORT}`);
+  console.log(`Soullytics backend running on port ${PORT}`);
 });
