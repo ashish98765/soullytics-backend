@@ -1,53 +1,40 @@
 // src/engines/adsCodeRegistry.js
 
-module.exports = {
-  adsCode01: require("./adsCode01.objectiveClarity"),
-  adsCode02: require("./adsCode02.budgetReality"),
-  adsCode03: require("./adsCode03.platformSelection"),
-  adsCode04: require("./adsCode04.audienceTemperature"),
-  adsCode05: require("./adsCode05.messageMatch"),
-  adsCode06: require("./adsCode06.hookStrength"),
-  adsCode07: require("./adsCode07.emotionalIntensity"),
-  adsCode08: require("./adsCode08.ctaAggression"),
-  adsCode09: require("./adsCode09.creativeFormat"),
-  adsCode10: require("./adsCode10.platformRules"),
-  adsCode11: require("./adsCode11.testingStrategy"),
-  adsCode12: require("./adsCode12.budgetSplit"),
-  adsCode13: require("./adsCode13.creativeFatigue"),
-  adsCode14: require("./adsCode14.performanceExpectation"),
-  adsCode15: require("./adsCode15.riskDetection"),
-  adsCode16: require("./adsCode16.scalingReadiness"),
-  adsCode17: require("./adsCode17.platformBias"),
-  adsCode18: require("./adsCode18.stopLoss"),
-  adsCode19: require("./adsCode19.finalComposer"),
-  adsCode20: require("./adsCode20.realityCheck"),
-  adsCode21: require("./adsCode21.feedbackLoop"),
-  adsCode22: require("./adsCode22.learningMemory"),
-  adsCode24: require("./adsCode24.signalQuality"),
-  adsCode25: require("./adsCode25.funnelIntegrity"),
-  adsCode26: require("./adsCode26.burnRate"),
-  adsCode27: require("./adsCode27.audienceSaturation"),
-  adsCode28: require("./adsCode28.creativeNovelty"),
-  adsCode29: require("./adsCode29.humanOverrideRisk"),
-  adsCode30: require("./adsCode30.founderRiskProfile"),
-  adsCode31: require("./adsCode31.timeDecayLearning"),
-  adsCode32: require("./adsCode32.recommendation"),
-  adsCode33: require("./adsCode33.confidenceValidator"),
-  adsCode34: require("./adsCode34.decisionEvolution"),
-  adsCode35: require("./adsCode35.dataReliability"),
-  adsCode36: require("./adsCode36.decisionStability"),
-  adsCode37: require("./adsCode37.capitalProtection"),
-  adsCode38: require("./adsCode38.permissionEngine"),
-  adsCode39: require("./adsCode39.coldStartImmunity"),
-  adsCode40: require("./adsCode40.externalRealityAnchor"),
-  adsCode41: require("./adsCode41.predictionEngine"),
-  adsCode42: require("./adsCode42.simulationEngine"),
-  adsCode43: require("./adsCode43.creativeIntelligenceV2"),
-  adsCode44: require("./adsCode44.updateEngine"),
-  adsCode45: require("./adsCode45.explainabilityEngine"),
-  adsCode46: require("./adsCode46.recommendationConfidence"),
-  adsCode47: require("./adsCode47.decisionEvolutionV2"),
-  adsCode48: require("./adsCode48.accountBehaviourProfile"),
-  adsCode49: require("./adsCode49.externalSignalBlend"),
-  adsCode50: require("./adsCode50.systemHealth")
-};
+const fs = require("fs");
+const path = require("path");
+
+const registry = {};
+
+function loadAdsCodes() {
+  const enginesDir = __dirname;
+
+  const files = fs.readdirSync(enginesDir);
+
+  files.forEach((file) => {
+    // sirf adsCode files
+    if (!file.startsWith("adsCode")) return;
+    if (!file.endsWith(".js")) return;
+
+    const fullPath = path.join(enginesDir, file);
+
+    try {
+      const engine = require(fullPath);
+
+      const engineName =
+        engine.code ||
+        engine.name ||
+        file.replace(".js", "");
+
+      registry[engineName] = engine;
+    } catch (err) {
+      console.error(`❌ Failed loading ${file}:`, err.message);
+    }
+  });
+
+  return registry;
+}
+
+// Load once on boot
+const adsCodeRegistry = loadAdsCodes();
+
+module.exports = adsCodeRegistry;
