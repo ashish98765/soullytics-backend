@@ -1,33 +1,21 @@
-// src/routes/decision.routes.js
-
 const express = require("express");
 const router = express.Router();
 
-const decisionOrchestrator = require("../core/decisionOrchestrator");
+const { decisionOrchestrator } = require("../core/decisionOrchestrator");
 
-router.post("/", async (req, res) => {
+// POST /api/decision
+router.post("/decision", async (req, res) => {
   try {
-    const payload = req.body || {};
-
-    if (!payload || Object.keys(payload).length === 0) {
-      return res.status(400).json({
-        success: false,
-        error: "Empty request body"
-      });
-    }
-
-    const result = await decisionOrchestrator(payload);
-
-    return res.status(200).json({
+    const result = await decisionOrchestrator(req.body);
+    res.json({
       success: true,
-      data: result
+      ...result
     });
   } catch (err) {
-    console.error("Decision route error:", err);
-
-    return res.status(500).json({
+    console.error("Decision error:", err);
+    res.status(500).json({
       success: false,
-      error: "Decision processing failed"
+      error: err.message || "Decision failed"
     });
   }
 });
