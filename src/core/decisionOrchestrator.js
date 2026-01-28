@@ -1,7 +1,7 @@
 // src/core/decisionOrchestrator.js
 
 const DecisionEngine = require("./decisionEngine");
-const { engineResult } = require("./engineResult");
+const engineResult = require("./engineResult");
 const { buildDecisionTrace } = require("./decisionTrace");
 
 class DecisionOrchestrator {
@@ -13,7 +13,9 @@ class DecisionOrchestrator {
     const decisionEngine = new DecisionEngine();
     const collectedResults = [];
 
-    // 1. Run all engines safely
+    /* -------------------------------------------------
+       1. Run all engines safely (NO engine changes)
+    ------------------------------------------------- */
     for (const Engine of this.engines) {
       try {
         const instance =
@@ -28,19 +30,23 @@ class DecisionOrchestrator {
           engineResult({
             engine: Engine?.name || "UnknownEngine",
             status: "FAIL",
+            score: null,
             message: err.message || "Engine crashed",
-            confidence: 0
+            confidence: 0,
           })
         );
       }
     }
 
-    // 2. Feed engine results to decision engine
+    /* -------------------------------------------------
+       2. Feed results into decision engine
+    ------------------------------------------------- */
     collectedResults.forEach(r => decisionEngine.register(r));
-
     const decision = decisionEngine.resolve();
 
-    // 3. SCALE logic (NO engine changes)
+    /* -------------------------------------------------
+       3. SCALE logic (no engine touched)
+    ------------------------------------------------- */
     const total = collectedResults.length || 1;
     const failCount = collectedResults.filter(r => r.status === "FAIL").length;
     const failRatio = failCount / total;
@@ -56,7 +62,9 @@ class DecisionOrchestrator {
       finalAction = "SCALE";
     }
 
-    // 4. Final status mapping
+    /* -------------------------------------------------
+       4. Final status mapping
+    ------------------------------------------------- */
     const finalStatus =
       finalAction === "KILL"
         ? "FAIL"
@@ -66,16 +74,20 @@ class DecisionOrchestrator {
         ? "PASS"
         : "PASS";
 
-    // 5. Prescription layer (frontend ready)
+    /* -------------------------------------------------
+       5. Prescription layer (frontend ready)
+    ------------------------------------------------- */
     const prescription = this._buildPrescription({
       action: finalAction,
       confidence: decision.confidence,
       risk: decision.risk,
       failCount,
-      total
+      total,
     });
 
-    // 6. Return unified response
+    /* -------------------------------------------------
+       6. Unified response
+    ------------------------------------------------- */
     return {
       action: finalAction,
       score: decision.score || 0,
@@ -88,18 +100,18 @@ class DecisionOrchestrator {
         collectedResults,
         finalStatus,
         decision.confidence || 0
-      )
+      ),
     };
   }
 
-  // -------------------------
-  // Helpers
-  // -------------------------
+  /* =================================================
+     Helpers
+  ================================================= */
 
   _normalize(result, bucket) {
     if (!result) return;
 
-    // Array of engine results
+    // Array of results
     if (Array.isArray(result)) {
       result.forEach(r => this._normalize(r, bucket));
       return;
@@ -119,7 +131,7 @@ class DecisionOrchestrator {
         score: result.score ?? null,
         message: result.message || "",
         confidence: result.confidence ?? 0.5,
-        meta: result.meta || {}
+        meta: result.meta || {},
       })
     );
   }
@@ -134,8 +146,8 @@ class DecisionOrchestrator {
       why.push(`${failCount} of ${total} engines failed`);
 
     if (action === "PAUSE" || action === "KILL") {
-      fix.push("Improve ad creatives");
-      fix.push("Fix budget & bidding strategy");
+      fix.push("Improve ad creatives (hook, copy, visuals)");
+      fix.push("Fix budget and bidding strategy");
       fix.push("Resolve failed engine signals");
     }
 
@@ -150,15 +162,15 @@ class DecisionOrchestrator {
         action === "SCALE"
           ? "Ads performing strongly. Ready to scale."
           : action === "RUN"
-          ? "Ads are safe to continue."
+          ? "Ads are stable and safe to continue."
           : action === "PAUSE"
-          ? "Ads paused due to weak signals."
+          ? "Ads paused due to weak performance signals."
           : "Ads blocked due to critical issues.",
       why,
       what_to_fix: fix,
       next_action: action,
       when_to_scale:
-        "When confidence > 0.75, risk < 0.3, and failures < 10%"
+        "Confidence > 0.75, Risk < 0.3, Engine failures < 10%",
     };
   }
 }
