@@ -5,7 +5,8 @@ const engineResult = require("./engineResult");
 const { buildDecisionTrace } = require("./decisionTrace");
 
 /**
- * Engine group mapper (NO engine changes needed)
+ * Detect engine group from engine name
+ * (NO engine code changes needed)
  */
 function detectGroup(engineName = "") {
   const name = engineName.toLowerCase();
@@ -15,14 +16,18 @@ function detectGroup(engineName = "") {
   if (name.includes("audience")) return "AUDIENCE";
   if (name.includes("risk")) return "RISK";
   if (name.includes("scale")) return "SCALING";
-  if (name.includes("performance") || name.includes("conversion") || name.includes("ctr"))
+  if (
+    name.includes("performance") ||
+    name.includes("conversion") ||
+    name.includes("ctr")
+  )
     return "PERFORMANCE";
 
   return "GENERAL";
 }
 
 /**
- * Status → Severity
+ * Map status → severity
  */
 function mapSeverity(status) {
   if (status === "FAIL") return "HIGH";
@@ -39,7 +44,9 @@ class DecisionOrchestrator {
     const decisionEngine = new DecisionEngine();
     const collectedResults = [];
 
-    // 1. Run all engines safely
+    /**
+     * 1. Run all engines safely
+     */
     for (const Engine of this.engines) {
       try {
         const instance =
@@ -63,22 +70,45 @@ class DecisionOrchestrator {
       }
     }
 
-    // 2. Feed results to decision engine
+    /**
+     * 2. Feed results to decision engine
+     */
     collectedResults.forEach(r => decisionEngine.register(r));
-
     const decision = decisionEngine.resolve();
 
-    // 3. Final status mapping
+    /**
+     * 3. Final action logic (SAFE SCALE)
+     */
+    const total = collectedResults.length || 1;
+    const failCount = collectedResults.filter(r => r.status === "FAIL").length;
+    const failRatio = failCount / total;
+
+    let finalAction = decision.action;
+
+    if (
+      decision.action === "RUN" &&
+      decision.confidence >= 0.75 &&
+      decision.risk <= 0.3 &&
+      failRatio <= 0.1
+    ) {
+      finalAction = "SCALE";
+    }
+
+    /**
+     * 4. Final status mapping
+     */
     const finalStatus =
-      decision.action === "KILL"
+      finalAction === "KILL"
         ? "FAIL"
-        : decision.action === "PAUSE"
+        : finalAction === "PAUSE"
         ? "WARNING"
         : "PASS";
 
-    // 4. Unified response
+    /**
+     * 5. Unified response (frontend ready)
+     */
     return {
-      action: decision.action,
+      action: finalAction,
       score: decision.score || 0,
       risk: decision.risk || 0,
       confidence: decision.confidence || 0,
@@ -98,7 +128,7 @@ class DecisionOrchestrator {
   _normalize(result, bucket) {
     if (!result) return;
 
-    // If engine returns array
+    // Array of results
     if (Array.isArray(result)) {
       result.forEach(r => this._normalize(r, bucket));
       return;
@@ -114,7 +144,7 @@ class DecisionOrchestrator {
       return;
     }
 
-    // Fallback normalization
+    // Fallback
     bucket.push(
       engineResult({
         engine: result.engine || "AnonymousEngine",
