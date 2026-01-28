@@ -1,37 +1,46 @@
-// src/core/contextBuilder.js
-
-/**
- * Context Builder
- * Converts raw API input + history into engine-safe context
- */
-
 function buildContext(raw = {}) {
   return {
-    // Core inputs
+    /* ---------- CORE ---------- */
     objective: normalizeUpper(raw.objective),
-    budget: normalizeNumber(raw.budget),
     platform: normalizeLower(raw.platform),
+
+    /* ---------- CAMPAIGN ---------- */
+    campaign: {
+      id: raw.campaignId || null,
+      status: raw.status || "UNKNOWN",
+      dailyBudget: normalizeNumber(raw.budget),
+      spentToday: normalizeNumber(raw.spentToday)
+    },
+
+    /* ---------- PERFORMANCE ---------- */
+    performance: {
+      impressions: normalizeNumber(raw.impressions),
+      clicks: normalizeNumber(raw.clicks),
+      ctr: normalizeNumber(raw.ctr),
+      conversions: normalizeNumber(raw.conversions),
+      cpa: normalizeNumber(raw.cpa),
+      roas: normalizeNumber(raw.roas)
+    },
+
+    /* ---------- AUDIENCE ---------- */
     audience: normalizeAudience(raw.audience),
+
+    /* ---------- CREATIVES ---------- */
     creatives: Array.isArray(raw.creatives) ? raw.creatives : [],
 
-    // === MEMORY / LEARNING DATA ===
-    lastDecision: raw.lastDecision || null,
+    /* ---------- HISTORY ---------- */
+    lastDecision: raw.lastDecision ?? null,
     historicalDecisions: Array.isArray(raw.historicalDecisions)
       ? raw.historicalDecisions
       : [],
 
-    lastOutcome: raw.lastOutcome || null,
-    repeatCount: Number(raw.repeatCount || 0),
-    changesApplied: raw.changesApplied === true,
-    daysSinceLastDecision: Number(raw.daysSinceLastDecision || 0),
-
-    // Meta
+    /* ---------- META ---------- */
     riskTolerance: raw.riskTolerance || "MEDIUM",
-    timestamp: new Date().toISOString(),
+    timestamp: new Date().toISOString()
   };
 }
 
-/* ---------------- Normalizers ---------------- */
+/* ---------------- NORMALIZERS ---------------- */
 
 function normalizeUpper(value) {
   if (!value) return null;
@@ -54,7 +63,7 @@ function normalizeAudience(value) {
   return {
     temperature: value.temperature || "COLD",
     size: value.size || "UNKNOWN",
-    geo: value.geo || "GLOBAL",
+    geo: value.geo || "GLOBAL"
   };
 }
 
