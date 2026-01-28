@@ -3,36 +3,109 @@ const router = express.Router();
 
 const { DecisionOrchestrator } = require("../core/decisionOrchestrator");
 const adsCodeRegistry = require("../engines/adsCodeRegistry");
-const { buildContext } = require("../core/contextBuilder");
-const ingestAdsData = require("../core/adsDataIngestor");
 
+// persistence
+const resolveUser = require("../core/decisionPersistence");
+const supabase = require("../config/supabaseClient");
+
+/**
+ * POST /decision
+ * body must include:
+ * {
+ *   email: string,
+ *   plan: "starter" | "growth" | "pro" | "agency",
+ *   ...decisionContext
+ * }
+ */
 router.post("/decision", async (req, res) => {
   try {
-    /* 1️⃣ Build clean context */
-    const context = buildContext(req.body);
+    const { email, plan = "starter" } = req.body;
 
-    /* 2️⃣ Ingest ads data (optional but powerful) */
-    const adsData = await ingestAdsData(req.body);
-    context.adsMetrics = adsData.available ? adsData : null;
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        error: "EMAIL_REQUIRED"
+      });
+    }
 
-    /* 3️⃣ Load all engines (LOCKED – no change inside engines) */
+    /* -------------------------------------------------
+       1. Resolve user + usage row
+    ------------------------------------------------- */
+    const user = await resolveUser({ email, plan });
+
+    const month = new Date().toISOString().slice(0, 7);
+
+    const { data: usage, error } = await supabase
+      .from("usage_limits")
+      .select("*")
+      .eq("user_id", user.id)
+      .eq("month", month)
+      .single();
+
+    if (error) throw error;
+
+    /* -------------------------------------------------
+       2. PLAN LIMIT CHECK  (🔥 STEP 6 CORE)
+    ------------------------------------------------- */
+    const LIMITS = {
+      starter: 50,
+      growth: 500,
+      pro: 5000,
+      agency: Infinity
+    };
+
+    const decisionLimit = LIMITS[plan] ?? 50;
+
+    if (usage.used_decisions >= decisionLimit) {
+      return res.status(402).json({
+        success: false,
+        error: "LIMIT_EXCEEDED",
+        message: "Your monthly decision limit is over. Please upgrade.",
+        plan,
+        used: usage.used_decisions,
+        limit: decisionLimit
+      });
+    }
+
+    /* -------------------------------------------------
+       3. Run decision system (NO ENGINE CHANGE)
+    ------------------------------------------------- */
     const engines = Object.values(adsCodeRegistry);
-
-    /* 4️⃣ Orchestrator */
     const orchestrator = new DecisionOrchestrator(engines);
 
-    /* 5️⃣ Run decision */
-    const result = await orchestrator.run(context);
+    const decisionResult = await orchestrator.run(req.body);
 
+    /* -------------------------------------------------
+       4. Increment usage
+    ------------------------------------------------- */
+    await supabase
+      .from("usage_limits")
+      .update({
+        used_decisions: usage.used_decisions + 1
+      })
+      .eq("id", usage.id);
+
+    /* -------------------------------------------------
+       5. Final response
+    ------------------------------------------------- */
     res.json({
       success: true,
-      data: result,
+      data: decisionResult,
+      usage: {
+        used: usage.used_decisions + 1,
+        limit: decisionLimit,
+        remaining:
+          decisionLimit === Infinity
+            ? "∞"
+            : decisionLimit - (usage.used_decisions + 1)
+      }
     });
+
   } catch (err) {
     console.error("DECISION ROUTE ERROR:", err);
     res.status(500).json({
       success: false,
-      error: err.message || "Decision engine failed",
+      error: err.message
     });
   }
 });
