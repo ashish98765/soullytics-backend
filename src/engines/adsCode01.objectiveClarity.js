@@ -1,39 +1,32 @@
-// src/engines/adsCode01.objectiveClarity.js
+const engineResult = require("../core/engineResult");
 
-const { engineResult } = require("../core/engineResult");
-const { AdsCode } = require("../core/adsCode.interface");
+module.exports = function adsCode01_objectiveClarity(context) {
+  const objective = context.objective;
 
-class ObjectiveClarityEngine extends AdsCode {
-  run() {
-    const objective = this.context.objective;
-
-    if (!objective) {
-      return engineResult({
-        engine: "AdsCode01_ObjectiveClarity",
-        status: "FAIL",
-        score: 0,
-        message: "Objective missing. System cannot decide ads without a clear goal."
-      });
-    }
-
-    const allowedObjectives = ["LEADS", "SALES", "AWARENESS", "TRAFFIC"];
-
-    if (!allowedObjectives.includes(objective)) {
-      return engineResult({
-        engine: "AdsCode01_ObjectiveClarity",
-        status: "FAIL",
-        score: 0,
-        message: `Invalid objective '${objective}'. Allowed: ${allowedObjectives.join(", ")}`
-      });
-    }
-
+  if (!objective) {
     return engineResult({
       engine: "AdsCode01_ObjectiveClarity",
-      status: "PASS",
-      score: 1,
-      message: `Objective '${objective}' is clear and valid.`
+      status: "FAIL",
+      score: 0,
+      message: "Objective missing"
     });
   }
-}
 
-module.exports = { ObjectiveClarityEngine };
+  const allowed = ["LEADS", "SALES", "AWARENESS", "TRAFFIC"];
+
+  if (!allowed.includes(objective)) {
+    return engineResult({
+      engine: "AdsCode01_ObjectiveClarity",
+      status: "FAIL",
+      score: 0,
+      message: `Invalid objective ${objective}`
+    });
+  }
+
+  return engineResult({
+    engine: "AdsCode01_ObjectiveClarity",
+    status: "PASS",
+    score: 1,
+    message: `Objective ${objective} is valid`
+  });
+};
