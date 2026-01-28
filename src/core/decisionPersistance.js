@@ -1,15 +1,11 @@
+// src/core/decisionPersistence.js
+
 const supabase = require("../config/supabaseClient");
 
-function getCurrentMonth() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-}
-
 /**
- * Resolve or create user
- * Also ensures usage_limits row exists
+ * Resolve user and ensure monthly usage row exists
  */
-async function resolveUser(email) {
+async function resolveUser(email, plan = "starter") {
   // 1. Find user
   let { data: user, error } = await supabase
     .from("users")
@@ -19,19 +15,19 @@ async function resolveUser(email) {
 
   // 2. Create user if not exists
   if (!user) {
-    const { data: newUser, error: createErr } = await supabase
+    const { data: newUser, error: createError } = await supabase
       .from("users")
-      .insert([{ email }])
+      .insert([{ email, plan }])
       .select()
       .single();
 
-    if (createErr) throw createErr;
+    if (createError) throw createError;
     user = newUser;
   }
 
-  // 3. Ensure usage row exists
-  const month = getCurrentMonth();
+  const month = new Date().toISOString().slice(0, 7);
 
+  // 3. Check usage row
   let { data: usage } = await supabase
     .from("usage_limits")
     .select("*")
@@ -39,27 +35,27 @@ async function resolveUser(email) {
     .eq("month", month)
     .single();
 
+  // 4. Create usage row if not exists
   if (!usage) {
-    const planLimits = {
-      starter: 10,
-      growth: 50,
-      pro: 9999,
-      agency: 99999
+    const LIMITS = {
+      starter: 50,
+      growth: 500,
+      pro: 5000,
+      agency: 999999,
     };
 
-    const limit = planLimits[user.plan] || 10;
-
-    const { error: usageErr } = await supabase
+    const { error: usageError } = await supabase
       .from("usage_limits")
       .insert([
         {
           user_id: user.id,
           month,
-          decision_limit: limit
-        }
+          used_decisions: 0,
+          decision_limit: LIMITS[plan] ?? 50,
+        },
       ]);
 
-    if (usageErr) throw usageErr;
+    if (usageError) throw usageError;
   }
 
   return user;
