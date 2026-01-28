@@ -1,58 +1,41 @@
-// src/engines/adsCode27.audienceSaturation.js
-
 const { engineResult } = require("../core/engineResult");
 
-class AudienceSaturationEngine {
-  constructor(context) {
-    this.context = context;
-  }
+module.exports = function adsCode27(context = {}) {
+  const frequency = Number(context.frequency || 0);
+  const ctr = Number(context.ctr || 0);
+  const daysRunning = Number(context.daysRunning || 1);
 
-  run() {
-    const frequency = Number(this.context.frequency || 0);
-    const ctr = Number(this.context.ctr || 0);
-    const daysRunning = Number(this.context.daysRunning || 1);
-
-    // 🚨 Audience completely saturated
-    if (frequency >= 3.5 && ctr < 0.5) {
-      return engineResult({
-        engine: "AdsCode27_AudienceSaturation",
-        status: "FAIL",
-        score: 1,
-        message:
-          "Audience is saturated. High frequency with very low CTR. Stop or refresh audience."
-      });
-    }
-
-    // ⚠️ Early fatigue signals
-    if (frequency >= 2.5 && ctr < 1) {
-      return engineResult({
-        engine: "AdsCode27_AudienceSaturation",
-        status: "WARNING",
-        score: 0.6,
-        message:
-          "Audience fatigue detected. Consider creative or audience refresh."
-      });
-    }
-
-    // ⚠️ Too early to judge saturation
-    if (daysRunning < 3) {
-      return engineResult({
-        engine: "AdsCode27_AudienceSaturation",
-        status: "WARNING",
-        score: 0.7,
-        message:
-          "Campaign too new to confirm audience saturation."
-      });
-    }
-
-    // ✅ Audience healthy
+  if (frequency >= 3.5 && ctr < 0.5) {
     return engineResult({
       engine: "AdsCode27_AudienceSaturation",
-      status: "PASS",
-      score: 0.3,
-      message: "Audience engagement remains healthy."
+      status: "FAIL",
+      score: 1,
+      message: "Audience saturated. Stop or refresh."
     });
   }
-}
 
-module.exports = { AudienceSaturationEngine };
+  if (frequency >= 2.5 && ctr < 1) {
+    return engineResult({
+      engine: "AdsCode27_AudienceSaturation",
+      status: "WARNING",
+      score: 0.6,
+      message: "Early saturation signals detected."
+    });
+  }
+
+  if (daysRunning < 3) {
+    return engineResult({
+      engine: "AdsCode27_AudienceSaturation",
+      status: "WARNING",
+      score: 0.7,
+      message: "Too early to judge saturation."
+    });
+  }
+
+  return engineResult({
+    engine: "AdsCode27_AudienceSaturation",
+    status: "PASS",
+    score: 0.3,
+    message: "Audience engagement healthy."
+  });
+};
