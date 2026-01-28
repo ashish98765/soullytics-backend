@@ -1,52 +1,48 @@
-// src/engines/adsCode07.emotionalIntensity.js
+const engineResult = require("../core/engineResult");
 
-const { engineResult } = require("../core/engineResult");
-const { AdsCode } = require("../core/adsCode.interface");
+module.exports = function adsCode07_emotionalIntensity(context) {
+  const { emotionalIntensity, audienceType } = context;
 
-class EmotionalIntensityEngine extends AdsCode {
-  run() {
-    const emotionalIntensity = this.context.emotionalIntensity;
-    const audienceType = this.context.audienceType;
-
-    if (!emotionalIntensity) {
-      return engineResult({
-        engine: "AdsCode07_EmotionalIntensity",
-        status: "FAIL",
-        message: "Emotional intensity missing. Ad emotional pull cannot be judged."
-      });
-    }
-
-    if (!audienceType) {
-      return engineResult({
-        engine: "AdsCode07_EmotionalIntensity",
-        status: "FAIL",
-        message: "Audience type missing. Emotional calibration impossible."
-      });
-    }
-
-    if (emotionalIntensity === "LOW") {
-      return engineResult({
-        engine: "AdsCode07_EmotionalIntensity",
-        status: "FAIL",
-        message: "Low emotional intensity. Ad will not register with users."
-      });
-    }
-
-    if (emotionalIntensity === "HIGH" && audienceType === "COLD") {
-      return engineResult({
-        engine: "AdsCode07_EmotionalIntensity",
-        status: "FAIL",
-        message: "High emotional intensity on cold audience creates distrust."
-      });
-    }
-
+  if (!emotionalIntensity) {
     return engineResult({
       engine: "AdsCode07_EmotionalIntensity",
-      status: "PASS",
-      score: 0.8,
-      message: `Emotional intensity '${emotionalIntensity}' is appropriate for '${audienceType}' audience.`
+      status: "FAIL",
+      score: 0,
+      message: "Emotional intensity missing"
     });
   }
-}
 
-module.exports = { EmotionalIntensityEngine };
+  if (!audienceType) {
+    return engineResult({
+      engine: "AdsCode07_EmotionalIntensity",
+      status: "FAIL",
+      score: 0,
+      message: "Audience type missing"
+    });
+  }
+
+  if (emotionalIntensity === "LOW") {
+    return engineResult({
+      engine: "AdsCode07_EmotionalIntensity",
+      status: "FAIL",
+      score: 0.3,
+      message: "Low emotional pull"
+    });
+  }
+
+  if (emotionalIntensity === "HIGH" && audienceType === "COLD") {
+    return engineResult({
+      engine: "AdsCode07_EmotionalIntensity",
+      status: "FAIL",
+      score: 0.4,
+      message: "High emotion on cold audience creates distrust"
+    });
+  }
+
+  return engineResult({
+    engine: "AdsCode07_EmotionalIntensity",
+    status: "PASS",
+    score: 0.8,
+    message: "Emotional intensity calibrated"
+  });
+};
