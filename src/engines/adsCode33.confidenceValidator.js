@@ -1,47 +1,31 @@
-// src/engines/adsCode33.confidenceValidator.js
-
 const { engineResult } = require("../core/engineResult");
 
-class ConfidenceValidatorEngine {
-  constructor(context) {
-    this.context = context;
-  }
+module.exports = function adsCode33(context = {}) {
+  const score = Number(context.finalConfidence || 0);
+  const failCount = (context.engineResults || []).filter(r => r.status === "FAIL").length;
 
-  run() {
-    const score = Number(this.context.finalConfidence || 0);
-    const failCount = (this.context.engineResults || []).filter(
-      r => r.status === "FAIL"
-    ).length;
-
-    // ❌ High confidence but failures present → false confidence
-    if (score >= 70 && failCount > 0) {
-      return engineResult({
-        engine: "AdsCode33_ConfidenceValidator",
-        status: "FAIL",
-        score: 1,
-        message:
-          "High confidence detected despite critical failures. Confidence is invalid."
-      });
-    }
-
-    // ⚠️ Low confidence but no failures → uncertainty
-    if (score < 40 && failCount === 0) {
-      return engineResult({
-        engine: "AdsCode33_ConfidenceValidator",
-        status: "WARNING",
-        score: 0.7,
-        message:
-          "Low confidence without failures. Data may be insufficient or noisy."
-      });
-    }
-
+  if (score >= 70 && failCount > 0) {
     return engineResult({
       engine: "AdsCode33_ConfidenceValidator",
-      status: "PASS",
-      score: 0.3,
-      message: "Confidence level validated."
+      status: "FAIL",
+      score: 1,
+      message: "High confidence despite critical failures."
     });
   }
-}
 
-module.exports = { ConfidenceValidatorEngine };
+  if (score < 40 && failCount === 0) {
+    return engineResult({
+      engine: "AdsCode33_ConfidenceValidator",
+      status: "WARNING",
+      score: 0.7,
+      message: "Low confidence without failures."
+    });
+  }
+
+  return engineResult({
+    engine: "AdsCode33_ConfidenceValidator",
+    status: "PASS",
+    score: 0.3,
+    message: "Confidence validated."
+  });
+};
