@@ -4,9 +4,18 @@ const DecisionEngine = require("./decisionEngine");
 const engineResult = require("./engineResult");
 const { buildDecisionTrace } = require("./decisionTrace");
 
+// learning / persistence (safe async)
+const {
+  saveDecision,
+  updateEngineStats,
+  detectPatterns
+} = require("./decisionLearning");
+
+const calibrateConfidence = require("./confidenceLearner");
+const adjustAction = require("./finalDecisionAdjuster");
+
 /**
- * Detect engine group from engine name
- * (NO engine code changes needed)
+ * Helper: detect engine group (NO engine change needed)
  */
 function detectGroup(engineName = "") {
   const name = engineName.toLowerCase();
@@ -20,14 +29,14 @@ function detectGroup(engineName = "") {
     name.includes("performance") ||
     name.includes("conversion") ||
     name.includes("ctr")
-  )
+  ) {
     return "PERFORMANCE";
-
+  }
   return "GENERAL";
 }
 
 /**
- * Map status → severity
+ * Helper: severity mapping
  */
 function mapSeverity(status) {
   if (status === "FAIL") return "HIGH";
@@ -44,9 +53,9 @@ class DecisionOrchestrator {
     const decisionEngine = new DecisionEngine();
     const collectedResults = [];
 
-    /**
-     * 1. Run all engines safely
-     */
+    /* ------------------------------------------------
+     * 1. Run all engines safely (NO CHANGE TO ENGINES)
+     * ------------------------------------------------ */
     for (const Engine of this.engines) {
       try {
         const instance =
@@ -70,33 +79,37 @@ class DecisionOrchestrator {
       }
     }
 
-    /**
+    /* ----------------------------------------
      * 2. Feed results to decision engine
-     */
+     * ---------------------------------------- */
     collectedResults.forEach(r => decisionEngine.register(r));
     const decision = decisionEngine.resolve();
 
-    /**
-     * 3. Final action logic (SAFE SCALE)
-     */
+    /* ----------------------------------------
+     * 3. Metrics
+     * ---------------------------------------- */
     const total = collectedResults.length || 1;
     const failCount = collectedResults.filter(r => r.status === "FAIL").length;
     const failRatio = failCount / total;
 
-    let finalAction = decision.action;
+    /* ----------------------------------------
+     * 4. Learning-based action adjustment
+     * ---------------------------------------- */
+    const learnedConfidence = calibrateConfidence(
+      decision.confidence || 0,
+      total,
+      failRatio
+    );
 
-    if (
-      decision.action === "RUN" &&
-      decision.confidence >= 0.75 &&
-      decision.risk <= 0.3 &&
-      failRatio <= 0.1
-    ) {
-      finalAction = "SCALE";
-    }
+    const finalAction = adjustAction(
+      decision.action,
+      learnedConfidence,
+      failRatio
+    );
 
-    /**
-     * 4. Final status mapping
-     */
+    /* ----------------------------------------
+     * 5. Final status mapping
+     * ---------------------------------------- */
     const finalStatus =
       finalAction === "KILL"
         ? "FAIL"
@@ -104,37 +117,72 @@ class DecisionOrchestrator {
         ? "WARNING"
         : "PASS";
 
-    /**
-     * 5. Unified response (frontend ready)
-     */
+    /* ----------------------------------------
+     * 6. Fire-and-forget learning (NO BLOCKING)
+     * ---------------------------------------- */
+    try {
+      if (context.userId) {
+        saveDecision(
+          context.userId,
+          {
+            action: finalAction,
+            score: decision.score || 0,
+            risk: decision.risk || 0,
+            confidence: learnedConfidence,
+            finalStatus
+          },
+          { failCount, total }
+        );
+
+        updateEngineStats(collectedResults);
+        detectPatterns(context.userId, { action: finalAction });
+      }
+    } catch (e) {
+      // learning failure should never break decision flow
+      console.error("Learning layer error:", e.message);
+    }
+
+    /* ----------------------------------------
+     * 7. Unified frontend-ready response
+     * ---------------------------------------- */
     return {
       action: finalAction,
       score: decision.score || 0,
       risk: decision.risk || 0,
-      confidence: decision.confidence || 0,
+      confidence: learnedConfidence,
       reasons: decision.reasons || [],
       finalStatus,
+      prescription: {
+        summary:
+          finalAction === "SCALE"
+            ? "Ads performing strongly. Ready to scale."
+            : finalAction === "RUN"
+            ? "Ads are healthy. Continue running."
+            : finalAction === "PAUSE"
+            ? "Ads paused due to weak or risky signals."
+            : "Ads blocked due to critical failures.",
+        next_action: finalAction,
+        fail_ratio: failRatio
+      },
       trace: buildDecisionTrace(
         collectedResults,
         finalStatus,
-        decision.confidence || 0
+        learnedConfidence
       )
     };
   }
 
-  /**
-   * Normalize engine output
-   */
+  /* ----------------------------------------
+   * Normalize engine outputs (SAFE)
+   * ---------------------------------------- */
   _normalize(result, bucket) {
     if (!result) return;
 
-    // Array of results
     if (Array.isArray(result)) {
       result.forEach(r => this._normalize(r, bucket));
       return;
     }
 
-    // Already normalized
     if (result.engine && result.status) {
       bucket.push({
         ...result,
@@ -144,7 +192,6 @@ class DecisionOrchestrator {
       return;
     }
 
-    // Fallback
     bucket.push(
       engineResult({
         engine: result.engine || "AnonymousEngine",
