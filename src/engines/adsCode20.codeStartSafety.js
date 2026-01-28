@@ -1,55 +1,42 @@
-// src/engines/adsCode20.coldStartSafety.js
-
 const { engineResult } = require("../core/engineResult");
 
-class ColdStartSafetyEngine {
-  constructor(context) {
-    this.context = context;
-  }
+module.exports = function adsCode20(context = {}) {
+  const accountAgeDays = Number(context.accountAgeDays || 0);
+  const pixelEventsCount = Number(context.pixelEventsCount || 0);
+  const historicalSpend = Number(context.historicalSpend || 0);
+  const conversionsCount = Number(context.conversionsCount || 0);
 
-  run() {
-    const accountAgeDays = Number(this.context.accountAgeDays || 0);
-    const pixelEventsCount = Number(this.context.pixelEventsCount || 0);
-    const historicalSpend = Number(this.context.historicalSpend || 0);
-    const conversionsCount = Number(this.context.conversionsCount || 0);
-
-    // 🚨 Absolute cold start
-    if (
-      accountAgeDays < 7 &&
-      pixelEventsCount === 0 &&
-      historicalSpend === 0 &&
-      conversionsCount === 0
-    ) {
-      return engineResult({
-        engine: "AdsCode20_ColdStartSafety",
-        status: "FAIL",
-        score: 1,
-        message: "Absolute cold start detected. Ads must not run. Collect data first."
-      });
-    }
-
-    // ⚠️ Partial data, risky zone
-    if (
-      pixelEventsCount < 50 ||
-      historicalSpend < 1000 ||
-      conversionsCount < 5
-    ) {
-      return engineResult({
-        engine: "AdsCode20_ColdStartSafety",
-        status: "WARNING",
-        score: 0.7,
-        message: "Limited historical data. Allow only testing with restricted budget."
-      });
-    }
-
-    // ✅ Safe zone
+  if (
+    accountAgeDays < 7 &&
+    pixelEventsCount === 0 &&
+    historicalSpend === 0 &&
+    conversionsCount === 0
+  ) {
     return engineResult({
       engine: "AdsCode20_ColdStartSafety",
-      status: "PASS",
-      score: 0.3,
-      message: "Sufficient data available. Cold start restrictions not required."
+      status: "FAIL",
+      score: 1,
+      message: "Absolute cold start detected."
     });
   }
-}
 
-module.exports = { ColdStartSafetyEngine };
+  if (
+    pixelEventsCount < 50 ||
+    historicalSpend < 1000 ||
+    conversionsCount < 5
+  ) {
+    return engineResult({
+      engine: "AdsCode20_ColdStartSafety",
+      status: "WARNING",
+      score: 0.7,
+      message: "Limited data. Only cautious testing allowed."
+    });
+  }
+
+  return engineResult({
+    engine: "AdsCode20_ColdStartSafety",
+    status: "PASS",
+    score: 0.8,
+    message: "Cold start restrictions not required."
+  });
+};
