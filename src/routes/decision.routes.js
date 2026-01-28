@@ -3,18 +3,11 @@ const router = express.Router();
 
 const DecisionOrchestrator = require("../core/decisionOrchestrator");
 const adsCodeRegistry = require("../engines/adsCodeRegistry");
-
 const resolveUser = require("../core/decisionPersistence");
 const supabase = require("../config/supabaseClient");
 
 /**
- * POST /decision
- * body:
- * {
- *   email: string,
- *   plan: "starter" | "growth" | "pro" | "agency",
- *   ...decisionContext
- * }
+ * POST /api/decision
  */
 router.post("/decision", async (req, res) => {
   try {
@@ -27,7 +20,7 @@ router.post("/decision", async (req, res) => {
       });
     }
 
-    /* 1️⃣ Resolve user + usage row */
+    /* 1. Resolve user + usage */
     const user = await resolveUser(email, plan);
 
     const month = new Date().toISOString().slice(0, 7);
@@ -41,7 +34,7 @@ router.post("/decision", async (req, res) => {
 
     if (usageErr) throw usageErr;
 
-    /* 2️⃣ Plan limits */
+    /* 2. Plan limits */
     const LIMITS = {
       starter: 50,
       growth: 500,
@@ -60,13 +53,13 @@ router.post("/decision", async (req, res) => {
       });
     }
 
-    /* 3️⃣ Run decision system (NO engine change) */
+    /* 3. Run engines (NO ENGINE CHANGE) */
     const engines = Object.values(adsCodeRegistry);
     const orchestrator = new DecisionOrchestrator(engines);
 
     const decisionResult = await orchestrator.run(input);
 
-    /* 4️⃣ Increment usage */
+    /* 4. Increment usage */
     await supabase
       .from("usage_limits")
       .update({
@@ -74,7 +67,7 @@ router.post("/decision", async (req, res) => {
       })
       .eq("id", usage.id);
 
-    /* 5️⃣ Save decision */
+    /* 5. Save decision */
     await supabase.from("decisions").insert({
       user_id: user.id,
       plan,
@@ -85,7 +78,7 @@ router.post("/decision", async (req, res) => {
       created_at: new Date().toISOString()
     });
 
-    /* 6️⃣ Final response */
+    /* 6. Response */
     res.json({
       success: true,
       data: decisionResult,
@@ -98,6 +91,7 @@ router.post("/decision", async (req, res) => {
             : decisionLimit - (usage.used_decisions + 1)
       }
     });
+
   } catch (err) {
     console.error("DECISION ROUTE ERROR:", err);
     res.status(500).json({
