@@ -1,45 +1,39 @@
-// src/engines/adsCode02.budgetReality.js
+const engineResult = require("../core/engineResult");
 
-const { engineResult } = require("../core/engineResult");
-const { AdsCode } = require("../core/adsCode.interface");
+module.exports = function adsCode02_budgetReality(context) {
+  const budget = Number(context.budget);
+  const platform = context.platform;
 
-class BudgetRealityEngine extends AdsCode {
-  run() {
-    const budget = Number(this.context.budget);
-    const platform = this.context.platform;
-
-    if (!budget || isNaN(budget)) {
-      return engineResult({
-        engine: "AdsCode02_BudgetReality",
-        status: "FAIL",
-        message: "Budget missing or invalid. Ads cannot run without a real budget."
-      });
-    }
-
-    const minimumBudgetByPlatform = {
-      meta: 500,     // INR per day
-      google: 800,
-      youtube: 1000
-    };
-
-    const minRequired = minimumBudgetByPlatform[platform] || 500;
-
-    if (budget < minRequired) {
-      return engineResult({
-        engine: "AdsCode02_BudgetReality",
-        status: "FAIL",
-        score: 0.9,
-        message: `Budget too low for ${platform}. Minimum realistic budget is ₹${minRequired}/day.`
-      });
-    }
-
+  if (!budget || isNaN(budget)) {
     return engineResult({
       engine: "AdsCode02_BudgetReality",
-      status: "PASS",
-      score: 0.2,
-      message: `Budget ₹${budget}/day is realistic for ${platform}.`
+      status: "FAIL",
+      score: 0,
+      message: "Invalid or missing budget"
     });
   }
-}
 
-module.exports = { BudgetRealityEngine };
+  const min = {
+    meta: 500,
+    google: 800,
+    youtube: 1000
+  };
+
+  const required = min[platform] || 500;
+
+  if (budget < required) {
+    return engineResult({
+      engine: "AdsCode02_BudgetReality",
+      status: "FAIL",
+      score: 0.4,
+      message: `Budget too low for ${platform}`
+    });
+  }
+
+  return engineResult({
+    engine: "AdsCode02_BudgetReality",
+    status: "PASS",
+    score: 0.8,
+    message: "Budget is realistic"
+  });
+};
