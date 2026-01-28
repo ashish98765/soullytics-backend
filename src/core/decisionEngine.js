@@ -13,20 +13,19 @@ class DecisionEngine {
   resolve() {
     let score = 0;
     let risk = 0;
+    let confidenceSum = 0;
     let reasons = [];
-    let confidenceSignals = 0;
 
-    this.signals.forEach((s) => {
+    this.signals.forEach(s => {
       if (typeof s.score === "number") score += s.score;
       if (typeof s.risk === "number") risk += s.risk;
-
+      if (typeof s.confidence === "number") confidenceSum += s.confidence;
       if (s.message) reasons.push(s.message);
-      if (s.confidence) confidenceSignals += s.confidence;
     });
 
     const avgConfidence =
       this.signals.length > 0
-        ? Math.min(1, confidenceSignals / this.signals.length)
+        ? Math.min(1, confidenceSum / this.signals.length)
         : 0.5;
 
     let action = "PAUSE";
