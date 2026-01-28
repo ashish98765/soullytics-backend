@@ -1,36 +1,34 @@
-function buildExplanation(decision, trace = []) {
-  const engines = trace.engines || [];
-
-  const positives = [];
+function buildExplanation(decision, engineResults = []) {
+  const passed = [];
   const warnings = [];
+  const failed = [];
 
-  engines.forEach(e => {
-    if (e.status === "PASS" && e.message) positives.push(e.message);
-    if (e.status === "FAIL" || e.status === "WARNING") {
-      if (e.message) warnings.push(e.message);
-    }
+  engineResults.forEach(e => {
+    if (e.status === "PASS") passed.push(e.message || e.engine);
+    if (e.status === "WARNING") warnings.push(e.message || e.engine);
+    if (e.status === "FAIL") failed.push(e.message || e.engine);
   });
 
-  let primary_reason = "Decision based on overall performance signals";
+  let primary = "Decision based on overall performance signals";
 
   if (decision.action === "SCALE")
-    primary_reason = "Strong performance signals detected";
+    primary = "Strong performance signals detected";
   if (decision.action === "PAUSE")
-    primary_reason = "Performance instability detected";
+    primary = "Performance instability detected";
   if (decision.action === "KILL")
-    primary_reason = "High risk and poor performance";
+    primary = "High risk and poor performance detected";
   if (decision.action === "RUN")
-    primary_reason = "Campaign is stable";
+    primary = "Campaign is stable";
 
   return {
-    primary_reason,
-    supporting_factors: positives.slice(0, 3),
-    warning: warnings[0] || null,
-    next_best_action: getNextAction(decision.action)
+    primary,
+    secondary: passed.slice(0, 3),
+    warning: warnings[0] || (failed[0] || null),
+    next_action: nextAction(decision.action)
   };
 }
 
-function getNextAction(action) {
+function nextAction(action) {
   if (action === "SCALE") return "Increase budget by 10–20%";
   if (action === "PAUSE") return "Fix creatives or targeting";
   if (action === "KILL") return "Stop campaign immediately";
