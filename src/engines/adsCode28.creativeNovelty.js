@@ -1,47 +1,32 @@
-// src/engines/adsCode28.creativeNovelty.js
-
 const { engineResult } = require("../core/engineResult");
 
-class CreativeNoveltyEngine {
-  constructor(context) {
-    this.context = context;
-  }
+module.exports = function adsCode28(context = {}) {
+  const creativeAgeDays = Number(context.creativeAgeDays || 0);
+  const ctrTrend = Number(context.ctrTrend || 0);
+  const sameHookCount = Number(context.sameHookCount || 0);
 
-  run() {
-    const creativeAgeDays = Number(this.context.creativeAgeDays || 0);
-    const ctrTrend = Number(this.context.ctrTrend || 0); // % change
-    const sameHookCount = Number(this.context.sameHookCount || 0);
-
-    // 🚨 Creative totally stale
-    if (creativeAgeDays > 21 && ctrTrend < -40) {
-      return engineResult({
-        engine: "AdsCode28_CreativeNovelty",
-        status: "FAIL",
-        score: 1,
-        message:
-          "Creative is stale. Long-running creative with heavy CTR decay."
-      });
-    }
-
-    // ⚠️ Novelty wearing off
-    if (creativeAgeDays > 14 || sameHookCount >= 3) {
-      return engineResult({
-        engine: "AdsCode28_CreativeNovelty",
-        status: "WARNING",
-        score: 0.6,
-        message:
-          "Creative novelty declining. Fresh hook or format recommended."
-      });
-    }
-
-    // ✅ Creative still fresh
+  if (creativeAgeDays > 21 && ctrTrend < -40) {
     return engineResult({
       engine: "AdsCode28_CreativeNovelty",
-      status: "PASS",
-      score: 0.3,
-      message: "Creative still feels fresh to the audience."
+      status: "FAIL",
+      score: 1,
+      message: "Creative stale with heavy CTR decay."
     });
   }
-}
 
-module.exports = { CreativeNoveltyEngine };
+  if (creativeAgeDays > 14 || sameHookCount >= 3) {
+    return engineResult({
+      engine: "AdsCode28_CreativeNovelty",
+      status: "WARNING",
+      score: 0.6,
+      message: "Creative novelty wearing off."
+    });
+  }
+
+  return engineResult({
+    engine: "AdsCode28_CreativeNovelty",
+    status: "PASS",
+    score: 0.3,
+    message: "Creative still fresh."
+  });
+};
