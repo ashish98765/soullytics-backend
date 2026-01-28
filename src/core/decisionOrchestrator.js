@@ -1,97 +1,95 @@
 // src/core/decisionOrchestrator.js
 
-const DataFusionEngine = require("./dataFusionEngine");
-
-const ObjectiveBudgetEngine = require("./objectiveBudget.engine");
-const PlatformRulesEngine = require("./platformRules.engine");
-const CreativeIntelligenceEngine = require("./creativeIntelligence.engine");
-const FunnelIntegrityEngine = require("./funnelIntegrity.engine");
-const CapitalProtectionEngine = require("./capitalProtection.engine");
-const ScalingReadinessEngine = require("./scalingReadiness.engine");
-const PredictionSimulationEngine = require("./predictionSimulation.engine");
 const DecisionEngine = require("./decisionEngine");
-const ExplainabilityEngine = require("./explainabilityEngine");
+const { engineResult } = require("./engineResult");
+const { buildDecisionTrace } = require("./decisionTrace");
 
-async function decisionOrchestrator(rawContext = {}) {
-  // 1. Data fusion
-  const context = DataFusionEngine.run(rawContext);
-
-  // 2. Objective & budget
-  const objectiveBudget = ObjectiveBudgetEngine.run(context);
-  if (!objectiveBudget.valid) {
-    return earlyExit("STOP", "Objective or budget invalid");
+class DecisionOrchestrator {
+  constructor(engines = []) {
+    this.engines = engines;
   }
 
-  // 3. Platform rules
-  const platformRules = PlatformRulesEngine.run(context);
-  if (!platformRules.allowed) {
-    return earlyExit("STOP", "Platform rules violation");
+  async run(context = {}) {
+    const decisionEngine = new DecisionEngine();
+    const collectedResults = [];
+
+    for (const Engine of this.engines) {
+      try {
+        const instance =
+          typeof Engine === "function" ? new Engine(context) : Engine;
+
+        if (!instance || typeof instance.run !== "function") {
+          continue;
+        }
+
+        const result = await instance.run();
+        this._normalize(result, collectedResults);
+      } catch (err) {
+        collectedResults.push(
+          engineResult({
+            engine: Engine?.name || "UnknownEngine",
+            status: "FAIL",
+            message: err.message || "Engine crashed",
+            confidence: 0,
+          })
+        );
+      }
+    }
+
+    // Feed everything into decision engine
+    collectedResults.forEach((r) => decisionEngine.register(r));
+
+    const decision = decisionEngine.resolve();
+
+    const finalStatus =
+      decision.action === "KILL"
+        ? "FAIL"
+        : decision.action === "PAUSE"
+        ? "WARNING"
+        : "PASS";
+
+    return {
+      action: decision.action,
+      score: decision.score,
+      risk: decision.risk,
+      confidence: decision.confidence,
+      reasons: decision.reasons,
+      finalStatus,
+      trace: buildDecisionTrace(
+        collectedResults,
+        finalStatus,
+        decision.confidence
+      ),
+    };
   }
 
-  // 4. Creative & funnel
-  const creativeHealth = CreativeIntelligenceEngine.run(context);
-  const funnelHealth = FunnelIntegrityEngine.run(context);
+  _normalize(result, bucket) {
+    if (!result) return;
 
-  // 5. Capital protection
-  const capitalSafety = CapitalProtectionEngine.run(context);
-  if (!capitalSafety.safe) {
-    return earlyExit("STOP", "Capital at high risk");
+    // Array of engines
+    if (Array.isArray(result)) {
+      result.forEach((r) => this._normalize(r, bucket));
+      return;
+    }
+
+    // Proper engineResult already
+    if (result.engine && result.status) {
+      bucket.push(result);
+      return;
+    }
+
+    // Fallback normalization
+    bucket.push(
+      engineResult({
+        engine: result.engine || "AnonymousEngine",
+        status: result.status || "PASS",
+        score: result.score ?? null,
+        message: result.message || "",
+        confidence: result.confidence ?? 0.5,
+        meta: result.meta || {},
+      })
+    );
   }
-
-  // 6. Scaling
-  const scaling = ScalingReadinessEngine.run(context);
-
-  // 7. Prediction
-  const prediction = PredictionSimulationEngine.run({
-    context,
-    creativeHealth,
-    funnelHealth,
-    scaling,
-  });
-
-  // 8. Decision
-  const decision = DecisionEngine.run({
-    objectiveBudget,
-    platformRules,
-    creativeHealth,
-    funnelHealth,
-    capitalSafety,
-    scaling,
-    prediction,
-  });
-
-  // 9. Explainability
-  const explanation = ExplainabilityEngine.run({
-    decision,
-    signals: {
-      creativeHealth,
-      funnelHealth,
-      capitalSafety,
-      scaling,
-      prediction,
-    },
-  });
-
-  return {
-    decision: decision.action,
-    confidence: decision.confidence,
-    risk: prediction.riskLevel,
-    why: explanation.reasons,
-    moneyAdvice: decision.moneyMove,
-    ifIgnored: prediction.ifIgnored,
-  };
 }
 
-// Early exit helper
-function earlyExit(action, reason) {
-  return {
-    decision: action,
-    confidence: 0.3,
-    risk: "HIGH",
-    why: [reason],
-    moneyAdvice: "HOLD",
-    ifIgnored: "High probability of loss",
-  };
-}
-
-module.exports = decisionOrchestrator;
+module.exports = { DecisionOrchestrator };
