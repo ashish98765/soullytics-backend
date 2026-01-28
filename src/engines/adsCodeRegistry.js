@@ -1,5 +1,4 @@
 // src/engines/adsCodeRegistry.js
-
 const fs = require("fs");
 const path = require("path");
 
@@ -7,34 +6,38 @@ const registry = {};
 
 function loadAdsCodes() {
   const enginesDir = __dirname;
-
   const files = fs.readdirSync(enginesDir);
 
   files.forEach((file) => {
-    // sirf adsCode files
     if (!file.startsWith("adsCode")) return;
     if (!file.endsWith(".js")) return;
 
     const fullPath = path.join(enginesDir, file);
 
     try {
-      const engine = require(fullPath);
+      const imported = require(fullPath);
 
-      const engineName =
-        engine.code ||
-        engine.name ||
-        file.replace(".js", "");
+      // ✅ CASE 1: module.exports = function(context){}
+      if (typeof imported === "function") {
+        registry[file.replace(".js", "")] = imported;
+        return;
+      }
 
-      registry[engineName] = engine;
+      // ✅ CASE 2: module.exports = { SomeEngine }
+      if (typeof imported === "object") {
+        const exportedKey = Object.keys(imported)[0];
+        registry[file.replace(".js", "")] = imported[exportedKey];
+        return;
+      }
+
+      throw new Error("Invalid engine export type");
+
     } catch (err) {
-      console.error(`❌ Failed loading ${file}:`, err.message);
+      console.error(`❌ ${file} skipped: ${err.message}`);
     }
   });
 
   return registry;
 }
 
-// Load once on boot
-const adsCodeRegistry = loadAdsCodes();
-
-module.exports = adsCodeRegistry;
+module.exports = loadAdsCodes();
