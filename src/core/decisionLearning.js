@@ -1,58 +1,44 @@
-const supabase = require("../config/supabaseClient");
+// src/core/learningEngine.js
 
-/**
- * Save every decision (user-level analytics)
- */
-async function saveDecision(userId, decision, meta = {}) {
-  if (!userId) return;
-
-  await supabase.from("decisions").insert([
-    {
-      user_id: userId,
-      action: decision.action,
-      score: decision.score,
-      risk: decision.risk,
-      confidence: decision.confidence,
-      final_status: decision.finalStatus,
-      fail_count: meta.failCount || 0,
-      engine_count: meta.total || 0,
-      created_at: new Date().toISOString()
-    }
-  ]);
+function clamp(v, min = 0, max = 1) {
+  return Math.max(min, Math.min(max, v));
 }
 
 /**
- * Engine learning stats (global learning)
+ * Compute learning bias from recent decision history
  */
-async function updateEngineStats(results = []) {
-  for (const r of results) {
-    if (!r.engine) continue;
-
-    await supabase.rpc("update_engine_stats", {
-      engine_name: r.engine,
-      status: r.status,
-      confidence: r.confidence || 0
-    });
+function computeLearningBias(history = []) {
+  if (!Array.isArray(history) || history.length === 0) {
+    return { confidenceBias: 0, riskBias: 0 };
   }
+
+  const recent = history.slice(-10); // last 10 decisions
+
+  let positive = 0;
+  let negative = 0;
+
+  recent.forEach(d => {
+    if (d.action === "SCALE" || d.action === "RUN") positive++;
+    if (d.action === "PAUSE" || d.action === "KILL") negative++;
+  });
+
+  return {
+    confidenceBias: clamp((positive - negative) * 0.05, -0.2, 0.2),
+    riskBias: clamp(negative * 0.03, 0, 0.3)
+  };
 }
 
 /**
- * Pattern detection (simple v1 – safe)
+ * Apply learning bias to decision
  */
-async function detectPatterns(userId, data) {
-  if (!userId) return;
+function applyLearning(decision, history = []) {
+  const { confidenceBias, riskBias } = computeLearningBias(history);
 
-  await supabase.from("decision_patterns").insert([
-    {
-      user_id: userId,
-      action: data.action,
-      created_at: new Date().toISOString()
-    }
-  ]);
+  return {
+    ...decision,
+    confidence: clamp((decision.confidence || 0) + confidenceBias),
+    risk: clamp((decision.risk || 0) + riskBias)
+  };
 }
 
-module.exports = {
-  saveDecision,
-  updateEngineStats,
-  detectPatterns
-};
+module.exports = { applyLearning };
