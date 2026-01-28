@@ -1,61 +1,44 @@
-/**
- * adsCode45.learningMemoryEngine.js
- * --------------------------------------------------
- * PURPOSE:
- * Learn from past decisions and adjust system behavior.
- * NO prediction. NO decision.
- * Only bias & sensitivity correction.
- */
+const { engineResult } = require("../core/engineResult");
 
-class LearningMemoryEngine {
-  constructor(memoryStore = []) {
-    this.memoryStore = memoryStore;
-  }
+module.exports = function adsCode45(context = {}) {
+  const { memoryStore = [] } = context;
 
-  record(run) {
-    this.memoryStore.push({
-      timestamp: Date.now(),
-      decision: run.decision,
-      confidence: run.confidence || 0.5,
-      risk: run.riskLevel || "UNKNOWN",
-      failedEngines: run.failedEngines || [],
-      outcome: run.outcome || "UNKNOWN" // later: PROFIT / LOSS / NEUTRAL
+  if (memoryStore.length < 7) {
+    return engineResult({
+      engine: "AdsCode45_LearningMemory",
+      status: "COLD",
+      impact: "LOW",
+      authority: 2,
+      score: 0.2,
+      message: "Insufficient historical memory data."
     });
   }
 
-  evaluate() {
-    if (this.memoryStore.length < 7) {
-      return {
-        status: "COLD",
-        adjustment: "NONE",
-        note: "Insufficient historical data"
-      };
-    }
+  const recent = memoryStore.slice(-15);
 
-    const recent = this.memoryStore.slice(-15);
+  const stats = {
+    kill: recent.filter(r => r.decision === "KILL").length,
+    scale: recent.filter(r => r.decision === "SCALE").length,
+    pause: recent.filter(r => r.decision === "PAUSE").length
+  };
 
-    const stats = {
-      kill: recent.filter(r => r.decision === "KILL").length,
-      scale: recent.filter(r => r.decision === "SCALE").length,
-      pause: recent.filter(r => r.decision === "PAUSE").length
-    };
+  let systemBias = "BALANCED";
+  if (stats.kill > stats.scale * 2) systemBias = "OVER_DEFENSIVE";
+  if (stats.scale > stats.kill * 2) systemBias = "OVER_AGGRESSIVE";
 
-    let systemBias = "BALANCED";
-
-    if (stats.kill > stats.scale * 2) systemBias = "OVER_DEFENSIVE";
-    if (stats.scale > stats.kill * 2) systemBias = "OVER_AGGRESSIVE";
-
-    return {
-      status: "ACTIVE",
-      systemBias,
-      recommendation:
-        systemBias === "OVER_DEFENSIVE"
-          ? "Reduce fear bias. Increase SCALE threshold slightly."
-          : systemBias === "OVER_AGGRESSIVE"
-          ? "Increase capital protection sensitivity."
-          : "System behavior stable."
-    };
-  }
-}
-
-module.exports = { LearningMemoryEngine };
+  return engineResult({
+    engine: "AdsCode45_LearningMemory",
+    status: "ACTIVE",
+    impact: "MEDIUM",
+    authority: 3,
+    score: 0.6,
+    message: "Learning bias evaluated.",
+    bias: systemBias,
+    recommendation:
+      systemBias === "OVER_DEFENSIVE"
+        ? "Reduce fear bias. Allow controlled scaling."
+        : systemBias === "OVER_AGGRESSIVE"
+        ? "Increase capital protection sensitivity."
+        : "System behavior stable."
+  });
+};
