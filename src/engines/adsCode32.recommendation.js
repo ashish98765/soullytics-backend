@@ -1,38 +1,24 @@
-// src/engines/adsCode32.recommendation.js
-
 const { engineResult } = require("../core/engineResult");
 
-class RecommendationEngine {
-  constructor(context) {
-    this.context = context;
-  }
+module.exports = function adsCode32(context = {}) {
+  const warnings = (context.engineResults || []).filter(r => r.status === "WARNING");
 
-  run() {
-    const warnings = (this.context.engineResults || []).filter(
-      r => r.status === "WARNING"
-    );
-
-    if (warnings.length === 0) {
-      return engineResult({
-        engine: "AdsCode32_Recommendation",
-        status: "PASS",
-        score: 0.3,
-        message: "No recommendations needed. System signals are clean."
-      });
-    }
-
-    const recommendations = warnings.map(w => w.message);
-
+  if (warnings.length === 0) {
     return engineResult({
       engine: "AdsCode32_Recommendation",
-      status: "WARNING",
-      score: 0.6,
-      message: "Actionable recommendations generated.",
-      data: {
-        recommendations
-      }
+      status: "PASS",
+      score: 0.3,
+      message: "No recommendations needed."
     });
   }
-}
 
-module.exports = { RecommendationEngine };
+  return engineResult({
+    engine: "AdsCode32_Recommendation",
+    status: "WARNING",
+    score: 0.6,
+    message: "Actionable recommendations generated.",
+    data: {
+      recommendations: warnings.map(w => w.message)
+    }
+  });
+};
