@@ -24,14 +24,14 @@ router.post("/decision", async (req, res) => {
     if (!email) {
       return res.status(400).json({
         success: false,
-        error: "EMAIL_REQUIRED"
+        error: "EMAIL_REQUIRED",
       });
     }
 
     /* -------------------------------------------------
        1. Resolve user + usage row
     ------------------------------------------------- */
-    const user = await resolveUser({ email, plan });
+    const user = await resolveUser(email, plan);
 
     const month = new Date().toISOString().slice(0, 7);
 
@@ -45,13 +45,13 @@ router.post("/decision", async (req, res) => {
     if (error) throw error;
 
     /* -------------------------------------------------
-       2. PLAN LIMIT CHECK  (🔥 STEP 6 CORE)
+       2. PLAN LIMIT CHECK  (CORE SaaS GATE)
     ------------------------------------------------- */
     const LIMITS = {
       starter: 50,
       growth: 500,
       pro: 5000,
-      agency: Infinity
+      agency: Infinity,
     };
 
     const decisionLimit = LIMITS[plan] ?? 50;
@@ -63,7 +63,7 @@ router.post("/decision", async (req, res) => {
         message: "Your monthly decision limit is over. Please upgrade.",
         plan,
         used: usage.used_decisions,
-        limit: decisionLimit
+        limit: decisionLimit,
       });
     }
 
@@ -81,7 +81,7 @@ router.post("/decision", async (req, res) => {
     await supabase
       .from("usage_limits")
       .update({
-        used_decisions: usage.used_decisions + 1
+        used_decisions: usage.used_decisions + 1,
       })
       .eq("id", usage.id);
 
@@ -92,20 +92,20 @@ router.post("/decision", async (req, res) => {
       success: true,
       data: decisionResult,
       usage: {
+        plan,
         used: usage.used_decisions + 1,
         limit: decisionLimit,
         remaining:
           decisionLimit === Infinity
-            ? "∞"
-            : decisionLimit - (usage.used_decisions + 1)
-      }
+            ? Infinity
+            : decisionLimit - (usage.used_decisions + 1),
+      },
     });
-
   } catch (err) {
     console.error("DECISION ROUTE ERROR:", err);
     res.status(500).json({
       success: false,
-      error: err.message
+      error: err.message,
     });
   }
 });
