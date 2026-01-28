@@ -1,112 +1,49 @@
 const express = require("express");
 const router = express.Router();
 
-const { DecisionOrchestrator } = require("../core/decisionOrchestrator");
-const adsCodeRegistry = require("../engines/adsCodeRegistry");
+const orchestrator = require("../core/orchestrator");
+const generateReasons = require("../core/reasonGenerator");
+const generatePrescription = require("../core/prescriptionGenerator");
 
-// persistence
-const resolveUser = require("../core/decisionPersistence");
-const supabase = require("../config/supabaseClient");
+const saveDecision = require("../services/saveDecision");
+const saveEngineResults = require("../services/saveEngineResults");
 
-/**
- * POST /decision
- * body must include:
- * {
- *   email: string,
- *   plan: "starter" | "growth" | "pro" | "agency",
- *   ...decisionContext
- * }
- */
-router.post("/decision", async (req, res) => {
+router.post("/", async (req, res) => {
   try {
-    const { email, plan = "starter" } = req.body;
+    const { userId, campaignId, input } = req.body;
 
-    if (!email) {
-      return res.status(400).json({
-        success: false,
-        error: "EMAIL_REQUIRED",
-      });
-    }
+    const result = await orchestrator.run(input);
 
-    /* -------------------------------------------------
-       1. Resolve user + usage row
-    ------------------------------------------------- */
-    const user = await resolveUser(email, plan);
+    const reasons = generateReasons(result.trace);
+    const prescription = generatePrescription({
+      action: result.action,
+      trace: result.trace
+    });
 
-    const month = new Date().toISOString().slice(0, 7);
+    const decision = await saveDecision({
+      userId,
+      campaignId,
+      action: result.action,
+      confidence: result.confidence,
+      risk: result.risk,
+      reasons,
+      prescription,
+      trace: result.trace
+    });
 
-    const { data: usage, error } = await supabase
-      .from("usage_limits")
-      .select("*")
-      .eq("user_id", user.id)
-      .eq("month", month)
-      .single();
+    await saveEngineResults(decision.id, result.trace.engines || []);
 
-    if (error) throw error;
-
-    /* -------------------------------------------------
-       2. PLAN LIMIT CHECK  (CORE SaaS GATE)
-    ------------------------------------------------- */
-    const LIMITS = {
-      starter: 50,
-      growth: 500,
-      pro: 5000,
-      agency: Infinity,
-    };
-
-    const decisionLimit = LIMITS[plan] ?? 50;
-
-    if (usage.used_decisions >= decisionLimit) {
-      return res.status(402).json({
-        success: false,
-        error: "LIMIT_EXCEEDED",
-        message: "Your monthly decision limit is over. Please upgrade.",
-        plan,
-        used: usage.used_decisions,
-        limit: decisionLimit,
-      });
-    }
-
-    /* -------------------------------------------------
-       3. Run decision system (NO ENGINE CHANGE)
-    ------------------------------------------------- */
-    const engines = Object.values(adsCodeRegistry);
-    const orchestrator = new DecisionOrchestrator(engines);
-
-    const decisionResult = await orchestrator.run(req.body);
-
-    /* -------------------------------------------------
-       4. Increment usage
-    ------------------------------------------------- */
-    await supabase
-      .from("usage_limits")
-      .update({
-        used_decisions: usage.used_decisions + 1,
-      })
-      .eq("id", usage.id);
-
-    /* -------------------------------------------------
-       5. Final response
-    ------------------------------------------------- */
     res.json({
-      success: true,
-      data: decisionResult,
-      usage: {
-        plan,
-        used: usage.used_decisions + 1,
-        limit: decisionLimit,
-        remaining:
-          decisionLimit === Infinity
-            ? Infinity
-            : decisionLimit - (usage.used_decisions + 1),
-      },
+      decisionId: decision.id,
+      action: result.action,
+      confidence: result.confidence,
+      risk: result.risk,
+      reasons,
+      prescription
     });
   } catch (err) {
-    console.error("DECISION ROUTE ERROR:", err);
-    res.status(500).json({
-      success: false,
-      error: err.message,
-    });
+    console.error(err);
+    res.status(500).json({ error: "Decision processing failed" });
   }
 });
 
