@@ -1,69 +1,46 @@
-// src/engines/adsCode09.creativeFormat.js
+const engineResult = require("../core/engineResult");
 
-const { engineResult } = require("../core/engineResult");
-const { AdsCode } = require("../core/adsCode.interface");
+module.exports = function adsCode09_creativeFormat(context) {
+  const { creativeFormat, objective } = context;
 
-class CreativeFormatEngine extends AdsCode {
-  run() {
-    const creativeFormat = this.context.creativeFormat;
-    const objective = this.context.objective;
-
-    if (!creativeFormat) {
-      return engineResult({
-        engine: "AdsCode09_CreativeFormat",
-        status: "FAIL",
-        message: "Creative format missing. Ad format decision impossible."
-      });
-    }
-
-    if (!objective) {
-      return engineResult({
-        engine: "AdsCode09_CreativeFormat",
-        status: "FAIL",
-        message: "Objective missing. Creative format cannot be evaluated."
-      });
-    }
-
-    if (creativeFormat === "TEXT") {
-      return engineResult({
-        engine: "AdsCode09_CreativeFormat",
-        status: "FAIL",
-        message: "Text-only ads are ineffective in paid platforms."
-      });
-    }
-
-    const allowedFormatsByObjective = {
-      AWARENESS: ["VIDEO", "IMAGE"],
-      TRAFFIC: ["IMAGE", "CAROUSEL"],
-      LEADS: ["IMAGE", "CAROUSEL"],
-      SALES: ["VIDEO"]
-    };
-
-    const allowedFormats = allowedFormatsByObjective[objective];
-
-    if (!allowedFormats) {
-      return engineResult({
-        engine: "AdsCode09_CreativeFormat",
-        status: "FAIL",
-        message: `Objective '${objective}' is not supported by creative engine.`
-      });
-    }
-
-    if (!allowedFormats.includes(creativeFormat)) {
-      return engineResult({
-        engine: "AdsCode09_CreativeFormat",
-        status: "FAIL",
-        message: `Creative format '${creativeFormat}' is unsuitable for '${objective}' objective.`
-      });
-    }
-
+  if (!creativeFormat || !objective) {
     return engineResult({
       engine: "AdsCode09_CreativeFormat",
-      status: "PASS",
-      score: 0.85,
-      message: `Creative format '${creativeFormat}' fits '${objective}' objective.`
+      status: "FAIL",
+      score: 0,
+      message: "Creative format or objective missing"
     });
   }
-}
 
-module.exports = { CreativeFormatEngine };
+  if (creativeFormat === "TEXT") {
+    return engineResult({
+      engine: "AdsCode09_CreativeFormat",
+      status: "FAIL",
+      score: 0.2,
+      message: "Text-only ads ineffective"
+    });
+  }
+
+  const allowed = {
+    AWARENESS: ["VIDEO", "IMAGE"],
+    TRAFFIC: ["IMAGE", "CAROUSEL"],
+    LEADS: ["IMAGE", "CAROUSEL"],
+    SALES: ["VIDEO"]
+  };
+
+  if (!allowed[objective]?.includes(creativeFormat)) {
+    return engineResult({
+      engine: "AdsCode09_CreativeFormat",
+      status: "FAIL",
+      score: 0.4,
+      message: "Creative format unsuitable"
+    });
+  }
+
+  return engineResult({
+    engine: "AdsCode09_CreativeFormat",
+    status: "PASS",
+    score: 0.85,
+    message: "Creative format aligned"
+  });
+};
