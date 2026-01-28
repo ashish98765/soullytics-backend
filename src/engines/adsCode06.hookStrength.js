@@ -1,68 +1,54 @@
-// src/engines/adsCode06.hookStrength.js
+const engineResult = require("../core/engineResult");
 
-const { engineResult } = require("../core/engineResult");
-const { AdsCode } = require("../core/adsCode.interface");
+module.exports = function adsCode06_hookStrength(context) {
+  const { hookType, audienceType } = context;
 
-class HookStrengthEngine extends AdsCode {
-  run() {
-    const hookType = this.context.hookType;
-    const audienceType = this.context.audienceType;
-
-    if (!hookType) {
-      return engineResult({
-        engine: "AdsCode06_HookStrength",
-        status: "FAIL",
-        message: "Hook type missing. Ad has no stopping power."
-      });
-    }
-
-    if (hookType === "GENERIC") {
-      return engineResult({
-        engine: "AdsCode06_HookStrength",
-        status: "FAIL",
-        message: "Generic hook detected. Users will skip the ad."
-      });
-    }
-
-    if (!audienceType) {
-      return engineResult({
-        engine: "AdsCode06_HookStrength",
-        status: "FAIL",
-        message: "Audience type missing. Hook strength cannot be evaluated."
-      });
-    }
-
-    const allowedHooksByAudience = {
-      COLD: ["QUESTION", "PAIN_POINT"],
-      WARM: ["QUESTION", "PAIN_POINT", "BOLD_STATEMENT"],
-      HOT: ["PAIN_POINT", "BOLD_STATEMENT"]
-    };
-
-    const allowedHooks = allowedHooksByAudience[audienceType];
-
-    if (!allowedHooks) {
-      return engineResult({
-        engine: "AdsCode06_HookStrength",
-        status: "FAIL",
-        message: `Audience type '${audienceType}' is not supported.`
-      });
-    }
-
-    if (!allowedHooks.includes(hookType)) {
-      return engineResult({
-        engine: "AdsCode06_HookStrength",
-        status: "FAIL",
-        message: `Hook type '${hookType}' is weak for '${audienceType}' audience.`
-      });
-    }
-
+  if (!hookType) {
     return engineResult({
       engine: "AdsCode06_HookStrength",
-      status: "PASS",
-      score: 0.85,
-      message: `Hook '${hookType}' is strong enough for '${audienceType}' audience.`
+      status: "FAIL",
+      score: 0,
+      message: "Hook type missing"
     });
   }
-}
 
-module.exports = { HookStrengthEngine };
+  if (hookType === "GENERIC") {
+    return engineResult({
+      engine: "AdsCode06_HookStrength",
+      status: "FAIL",
+      score: 0.2,
+      message: "Generic hook detected"
+    });
+  }
+
+  if (!audienceType) {
+    return engineResult({
+      engine: "AdsCode06_HookStrength",
+      status: "FAIL",
+      score: 0,
+      message: "Audience type missing"
+    });
+  }
+
+  const allowedHooks = {
+    COLD: ["QUESTION", "PAIN_POINT"],
+    WARM: ["QUESTION", "PAIN_POINT", "BOLD_STATEMENT"],
+    HOT: ["PAIN_POINT", "BOLD_STATEMENT"]
+  };
+
+  if (!allowedHooks[audienceType]?.includes(hookType)) {
+    return engineResult({
+      engine: "AdsCode06_HookStrength",
+      status: "FAIL",
+      score: 0.4,
+      message: `Hook ${hookType} weak for ${audienceType}`
+    });
+  }
+
+  return engineResult({
+    engine: "AdsCode06_HookStrength",
+    status: "PASS",
+    score: 0.85,
+    message: "Hook strength is appropriate"
+  });
+};
