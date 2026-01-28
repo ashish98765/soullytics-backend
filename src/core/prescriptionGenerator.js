@@ -6,56 +6,64 @@ function generatePrescription(decisionResult = {}) {
   const reasons = [];
   const actions = [];
 
-  // ---------- WHY ----------
-  if (trace?.summary) {
+  /* ---------- WHY ---------- */
+  if (trace.summary) {
     reasons.push(trace.summary);
   }
 
-  if (trace?.engines && Array.isArray(trace.engines)) {
-    trace.engines.forEach(engine => {
-      if (engine.status === "FAIL" || engine.status === "WARNING") {
-        if (engine.message) {
-          reasons.push(engine.message);
-        }
+  if (Array.isArray(trace.engines)) {
+    trace.engines.forEach(e => {
+      if (e.status === "FAIL" || e.status === "WARNING") {
+        if (e.message) reasons.push(e.message);
       }
     });
   }
 
-  // ---------- WHAT TO DO ----------
+  /* ---------- WHAT TO DO ---------- */
   if (action === "PAUSE") {
-    actions.push("Improve your ad creative (headline, image, or video)");
-    actions.push("Review audience targeting and narrow it");
-    actions.push("Increase budget slightly before retrying");
+    actions.push("Improve ad creative (headline, image, copy)");
+    actions.push("Tighten audience targeting");
+    actions.push("Test lower budget before resuming");
   }
 
   if (action === "RUN") {
-    actions.push("Let the campaign run without changes");
-    actions.push("Monitor performance for next 48 hours");
+    actions.push("Keep campaign running as-is");
+    actions.push("Monitor performance for next 24 hours");
   }
 
   if (action === "KILL") {
-    actions.push("Stop this campaign completely");
-    actions.push("Create a new campaign with a fresh strategy");
+    actions.push("Stop this campaign immediately");
+    actions.push("Create a new campaign with revised strategy");
   }
 
   if (action === "SCALE") {
-    actions.push("Increase budget by 20%");
-    actions.push("Scale gradually over the next 48 hours");
-    actions.push("Stop scaling if costs increase sharply");
+    actions.push("Increase budget by 15–25%");
+    actions.push("Scale gradually over 48 hours");
+    actions.push("Stop scaling if CPA increases sharply");
   }
 
   return {
-    summary:
-      action === "PAUSE"
-        ? "Campaign paused due to weak performance signals"
-        : action === "RUN"
-        ? "Campaign is healthy and safe to run"
-        : action === "KILL"
-        ? "Campaign should be stopped to prevent losses"
-        : "Campaign is ready to scale",
-    reasons: reasons.slice(0, 3), // max 3
-    actions: actions.slice(0, 3)  // max 3
+    decision: action,
+    summary: buildSummary(action),
+    reasons: reasons.slice(0, 3),
+    actions: actions.slice(0, 3),
   };
+}
+
+function buildSummary(action) {
+  if (action === "PAUSE")
+    return "Campaign paused due to weak performance signals";
+
+  if (action === "RUN")
+    return "Campaign is stable and safe to continue";
+
+  if (action === "KILL")
+    return "Campaign should be stopped to prevent losses";
+
+  if (action === "SCALE")
+    return "Campaign is performing well and ready to scale";
+
+  return "Decision completed";
 }
 
 module.exports = generatePrescription;
