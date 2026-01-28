@@ -4,6 +4,32 @@ const DecisionEngine = require("./decisionEngine");
 const engineResult = require("./engineResult");
 const { buildDecisionTrace } = require("./decisionTrace");
 
+/**
+ * Engine group mapper (NO engine changes needed)
+ */
+function detectGroup(engineName = "") {
+  const name = engineName.toLowerCase();
+
+  if (name.includes("creative")) return "CREATIVE";
+  if (name.includes("budget")) return "BUDGET";
+  if (name.includes("audience")) return "AUDIENCE";
+  if (name.includes("risk")) return "RISK";
+  if (name.includes("scale")) return "SCALING";
+  if (name.includes("performance") || name.includes("conversion") || name.includes("ctr"))
+    return "PERFORMANCE";
+
+  return "GENERAL";
+}
+
+/**
+ * Status → Severity
+ */
+function mapSeverity(status) {
+  if (status === "FAIL") return "HIGH";
+  if (status === "WARNING") return "MEDIUM";
+  return "LOW";
+}
+
 class DecisionOrchestrator {
   constructor(engines = []) {
     this.engines = engines;
@@ -13,9 +39,7 @@ class DecisionOrchestrator {
     const decisionEngine = new DecisionEngine();
     const collectedResults = [];
 
-    /* -------------------------------------------------
-       1. Run all engines safely (NO engine changes)
-    ------------------------------------------------- */
+    // 1. Run all engines safely
     for (const Engine of this.engines) {
       try {
         const instance =
@@ -29,89 +53,52 @@ class DecisionOrchestrator {
         collectedResults.push(
           engineResult({
             engine: Engine?.name || "UnknownEngine",
+            group: detectGroup(Engine?.name),
             status: "FAIL",
-            score: null,
+            severity: "HIGH",
             message: err.message || "Engine crashed",
-            confidence: 0,
+            confidence: 0
           })
         );
       }
     }
 
-    /* -------------------------------------------------
-       2. Feed results into decision engine
-    ------------------------------------------------- */
+    // 2. Feed results to decision engine
     collectedResults.forEach(r => decisionEngine.register(r));
+
     const decision = decisionEngine.resolve();
 
-    /* -------------------------------------------------
-       3. SCALE logic (no engine touched)
-    ------------------------------------------------- */
-    const total = collectedResults.length || 1;
-    const failCount = collectedResults.filter(r => r.status === "FAIL").length;
-    const failRatio = failCount / total;
-
-    let finalAction = decision.action;
-
-    if (
-      decision.action === "RUN" &&
-      decision.confidence >= 0.75 &&
-      decision.risk <= 0.3 &&
-      failRatio <= 0.1
-    ) {
-      finalAction = "SCALE";
-    }
-
-    /* -------------------------------------------------
-       4. Final status mapping
-    ------------------------------------------------- */
+    // 3. Final status mapping
     const finalStatus =
-      finalAction === "KILL"
+      decision.action === "KILL"
         ? "FAIL"
-        : finalAction === "PAUSE"
+        : decision.action === "PAUSE"
         ? "WARNING"
-        : finalAction === "SCALE"
-        ? "PASS"
         : "PASS";
 
-    /* -------------------------------------------------
-       5. Prescription layer (frontend ready)
-    ------------------------------------------------- */
-    const prescription = this._buildPrescription({
-      action: finalAction,
-      confidence: decision.confidence,
-      risk: decision.risk,
-      failCount,
-      total,
-    });
-
-    /* -------------------------------------------------
-       6. Unified response
-    ------------------------------------------------- */
+    // 4. Unified response
     return {
-      action: finalAction,
+      action: decision.action,
       score: decision.score || 0,
       risk: decision.risk || 0,
       confidence: decision.confidence || 0,
       reasons: decision.reasons || [],
       finalStatus,
-      prescription,
       trace: buildDecisionTrace(
         collectedResults,
         finalStatus,
         decision.confidence || 0
-      ),
+      )
     };
   }
 
-  /* =================================================
-     Helpers
-  ================================================= */
-
+  /**
+   * Normalize engine output
+   */
   _normalize(result, bucket) {
     if (!result) return;
 
-    // Array of results
+    // If engine returns array
     if (Array.isArray(result)) {
       result.forEach(r => this._normalize(r, bucket));
       return;
@@ -119,7 +106,11 @@ class DecisionOrchestrator {
 
     // Already normalized
     if (result.engine && result.status) {
-      bucket.push(result);
+      bucket.push({
+        ...result,
+        group: result.group || detectGroup(result.engine),
+        severity: mapSeverity(result.status)
+      });
       return;
     }
 
@@ -127,51 +118,15 @@ class DecisionOrchestrator {
     bucket.push(
       engineResult({
         engine: result.engine || "AnonymousEngine",
+        group: detectGroup(result.engine),
         status: result.status || "PASS",
+        severity: mapSeverity(result.status || "PASS"),
         score: result.score ?? null,
         message: result.message || "",
         confidence: result.confidence ?? 0.5,
-        meta: result.meta || {},
+        meta: result.meta || {}
       })
     );
-  }
-
-  _buildPrescription({ action, confidence, risk, failCount, total }) {
-    const why = [];
-    const fix = [];
-
-    if (confidence < 0.5) why.push("Low decision confidence");
-    if (risk > 0.6) why.push("High risk detected");
-    if (failCount > 0)
-      why.push(`${failCount} of ${total} engines failed`);
-
-    if (action === "PAUSE" || action === "KILL") {
-      fix.push("Improve ad creatives (hook, copy, visuals)");
-      fix.push("Fix budget and bidding strategy");
-      fix.push("Resolve failed engine signals");
-    }
-
-    if (action === "SCALE") {
-      fix.push("Increase budget gradually");
-      fix.push("Duplicate winning creatives");
-      fix.push("Expand audience targeting");
-    }
-
-    return {
-      summary:
-        action === "SCALE"
-          ? "Ads performing strongly. Ready to scale."
-          : action === "RUN"
-          ? "Ads are stable and safe to continue."
-          : action === "PAUSE"
-          ? "Ads paused due to weak performance signals."
-          : "Ads blocked due to critical issues.",
-      why,
-      what_to_fix: fix,
-      next_action: action,
-      when_to_scale:
-        "Confidence > 0.75, Risk < 0.3, Engine failures < 10%",
-    };
   }
 }
 
