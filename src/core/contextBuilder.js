@@ -1,46 +1,51 @@
+// src/core/contextBuilder.js
+
 function buildContext(raw = {}) {
   return {
-    /* ---------- CORE ---------- */
+    /* -------- CORE -------- */
     objective: normalizeUpper(raw.objective),
     platform: normalizeLower(raw.platform),
 
-    /* ---------- CAMPAIGN ---------- */
+    /* -------- CAMPAIGN -------- */
     campaign: {
       id: raw.campaignId || null,
       status: raw.status || "UNKNOWN",
       dailyBudget: normalizeNumber(raw.budget),
-      spentToday: normalizeNumber(raw.spentToday)
+      spentToday: normalizeNumber(raw.spentToday),
     },
 
-    /* ---------- PERFORMANCE ---------- */
+    /* -------- PERFORMANCE -------- */
     performance: {
       impressions: normalizeNumber(raw.impressions),
       clicks: normalizeNumber(raw.clicks),
       ctr: normalizeNumber(raw.ctr),
       conversions: normalizeNumber(raw.conversions),
       cpa: normalizeNumber(raw.cpa),
-      roas: normalizeNumber(raw.roas)
+      roas: normalizeNumber(raw.roas),
     },
 
-    /* ---------- AUDIENCE ---------- */
+    /* -------- ADS METRICS (NEW) -------- */
+    adsMetrics: raw.adsMetrics || null,
+
+    /* -------- AUDIENCE -------- */
     audience: normalizeAudience(raw.audience),
 
-    /* ---------- CREATIVES ---------- */
+    /* -------- CREATIVES -------- */
     creatives: Array.isArray(raw.creatives) ? raw.creatives : [],
 
-    /* ---------- HISTORY ---------- */
-    lastDecision: raw.lastDecision ?? null,
+    /* -------- HISTORY -------- */
+    lastDecision: raw.lastDecision || null,
     historicalDecisions: Array.isArray(raw.historicalDecisions)
       ? raw.historicalDecisions
       : [],
 
-    /* ---------- META ---------- */
+    /* -------- META -------- */
     riskTolerance: raw.riskTolerance || "MEDIUM",
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   };
 }
 
-/* ---------------- NORMALIZERS ---------------- */
+/* -------- NORMALIZERS -------- */
 
 function normalizeUpper(value) {
   if (!value) return null;
@@ -63,7 +68,7 @@ function normalizeAudience(value) {
   return {
     temperature: value.temperature || "COLD",
     size: value.size || "UNKNOWN",
-    geo: value.geo || "GLOBAL"
+    geo: value.geo || "GLOBAL",
   };
 }
 
