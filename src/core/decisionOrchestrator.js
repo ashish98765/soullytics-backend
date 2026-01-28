@@ -4,7 +4,7 @@ const DecisionEngine = require("./decisionEngine");
 const engineResult = require("./engineResult");
 const { buildDecisionTrace } = require("./decisionTrace");
 
-// learning / persistence (safe async)
+// async learning & persistence (safe)
 const {
   saveDecision,
   updateEngineStats,
@@ -15,11 +15,10 @@ const calibrateConfidence = require("./confidenceLearner");
 const adjustAction = require("./finalDecisionAdjuster");
 
 /**
- * Helper: detect engine group (NO engine change needed)
+ * Detect engine group (NO engine change needed)
  */
 function detectGroup(engineName = "") {
   const name = engineName.toLowerCase();
-
   if (name.includes("creative")) return "CREATIVE";
   if (name.includes("budget")) return "BUDGET";
   if (name.includes("audience")) return "AUDIENCE";
@@ -36,7 +35,7 @@ function detectGroup(engineName = "") {
 }
 
 /**
- * Helper: severity mapping
+ * Severity mapping
  */
 function mapSeverity(status) {
   if (status === "FAIL") return "HIGH";
@@ -53,9 +52,7 @@ class DecisionOrchestrator {
     const decisionEngine = new DecisionEngine();
     const collectedResults = [];
 
-    /* ------------------------------------------------
-     * 1. Run all engines safely (NO CHANGE TO ENGINES)
-     * ------------------------------------------------ */
+    /* 1. Run all engines safely (NO ENGINE CHANGE) */
     for (const Engine of this.engines) {
       try {
         const instance =
@@ -79,22 +76,16 @@ class DecisionOrchestrator {
       }
     }
 
-    /* ----------------------------------------
-     * 2. Feed results to decision engine
-     * ---------------------------------------- */
+    /* 2. Feed results to decision engine */
     collectedResults.forEach(r => decisionEngine.register(r));
     const decision = decisionEngine.resolve();
 
-    /* ----------------------------------------
-     * 3. Metrics
-     * ---------------------------------------- */
+    /* 3. Metrics */
     const total = collectedResults.length || 1;
     const failCount = collectedResults.filter(r => r.status === "FAIL").length;
     const failRatio = failCount / total;
 
-    /* ----------------------------------------
-     * 4. Learning-based action adjustment
-     * ---------------------------------------- */
+    /* 4. Learning-based confidence + action */
     const learnedConfidence = calibrateConfidence(
       decision.confidence || 0,
       total,
@@ -107,9 +98,7 @@ class DecisionOrchestrator {
       failRatio
     );
 
-    /* ----------------------------------------
-     * 5. Final status mapping
-     * ---------------------------------------- */
+    /* 5. Final status mapping */
     const finalStatus =
       finalAction === "KILL"
         ? "FAIL"
@@ -117,9 +106,7 @@ class DecisionOrchestrator {
         ? "WARNING"
         : "PASS";
 
-    /* ----------------------------------------
-     * 6. Fire-and-forget learning (NO BLOCKING)
-     * ---------------------------------------- */
+    /* 6. Fire-and-forget learning (NON-BLOCKING) */
     try {
       if (context.userId) {
         saveDecision(
@@ -138,13 +125,10 @@ class DecisionOrchestrator {
         detectPatterns(context.userId, { action: finalAction });
       }
     } catch (e) {
-      // learning failure should never break decision flow
       console.error("Learning layer error:", e.message);
     }
 
-    /* ----------------------------------------
-     * 7. Unified frontend-ready response
-     * ---------------------------------------- */
+    /* 7. Unified frontend-ready response */
     return {
       action: finalAction,
       score: decision.score || 0,
@@ -172,9 +156,9 @@ class DecisionOrchestrator {
     };
   }
 
-  /* ----------------------------------------
+  /**
    * Normalize engine outputs (SAFE)
-   * ---------------------------------------- */
+   */
   _normalize(result, bucket) {
     if (!result) return;
 
