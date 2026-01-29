@@ -1,50 +1,46 @@
 // src/data/dataIntake.controller.js
 
-const googleAdsAdapter = require("./googleAds.adapter");
-const metaAdsAdapter = require("./metaAds.adapter");
-const normalizeMetrics = require("./metricsNormalizer");
+const googleNormalizer = require("./normalizers/google.normalizer");
+const metaNormalizer = require("./normalizers/meta.normalizer");
+const openAdsNormalizer = require("./normalizers/openAds.normalizer");
 
-/**
- * Data Intake Controller
- * Chooses adapter, validates metrics, returns SAFE metrics
- */
-function dataIntakeController({ platform, raw }) {
-  if (!platform) {
-    throw new Error("Platform missing");
-  }
+module.exports = function dataIntakeController({ platform, raw }) {
+  try {
+    let normalized;
 
-  if (!raw) {
-    throw new Error("Raw ads data missing");
-  }
+    switch (platform) {
+      case "google":
+        normalized = googleNormalizer(raw);
+        break;
 
-  let adaptedMetrics;
+      case "meta":
+        normalized = metaNormalizer(raw);
+        break;
 
-  switch (platform) {
-    case "google":
-      adaptedMetrics = googleAdsAdapter(raw);
-      break;
+      case "openAds": // 👈 NOT adsterra
+        normalized = openAdsNormalizer(raw);
+        break;
 
-    case "meta":
-      adaptedMetrics = metaAdsAdapter(raw);
-      break;
+      default:
+        return {
+          ok: false,
+          errors: [`Unsupported platform: ${platform}`]
+        };
+    }
 
-    default:
-      throw new Error(`Unsupported platform: ${platform}`);
-  }
+    if (!normalized.ok) {
+      return normalized;
+    }
 
-  const validation = normalizeMetrics(adaptedMetrics);
+    return {
+      ok: true,
+      metrics: normalized.metrics
+    };
 
-  if (!validation.valid) {
+  } catch (err) {
     return {
       ok: false,
-      errors: validation.errors
+      errors: [err.message]
     };
   }
-
-  return {
-    ok: true,
-    metrics: validation.metrics
-  };
-}
-
-module.exports = dataIntakeController;
+};
