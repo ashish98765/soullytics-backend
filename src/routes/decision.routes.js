@@ -9,11 +9,19 @@ const adsCodeRegistry = require("../engines/adsCodeRegistry");
 const resolveUser = require("../core/decisionPersistence");
 const supabase = require("../config/supabaseClient");
 
-// DATA INTAKE LAYER
+// Data intake / normalization layer
 const dataIntakeController = require("../data/dataIntake.controller");
 
 /**
  * POST /api/decision
+ *
+ * body:
+ * {
+ *   email: string,
+ *   plan: "starter" | "growth" | "pro" | "agency",
+ *   platform: "google" | "meta" | "generic",
+ *   raw: { ...ads data... }
+ * }
  */
 router.post("/decision", async (req, res) => {
   try {
@@ -71,7 +79,7 @@ router.post("/decision", async (req, res) => {
       });
     }
 
-    /* 3. DATA INTAKE & VALIDATION (CRITICAL) */
+    /* 3. Data intake & validation (CRITICAL LAYER) */
     const intake = dataIntakeController({
       platform,
       raw
@@ -85,17 +93,14 @@ router.post("/decision", async (req, res) => {
       });
     }
 
-    /* 4. Run decision engines (NO ENGINE CHANGE) */
+    /* 4. Run decision engines */
     const engines = Object.values(adsCodeRegistry);
     const orchestrator = new DecisionOrchestrator(engines);
 
     const decisionResult = await orchestrator.run({
       metrics: intake.metrics,
-      context: {
-        userId: user.id,
-        plan,
-        platform
-      }
+      plan,
+      userId: user.id
     });
 
     /* 5. Increment usage */
@@ -114,13 +119,13 @@ router.post("/decision", async (req, res) => {
       action: decisionResult.action,
       confidence: decisionResult.confidence,
       risk: decisionResult.risk,
-      reasons: decisionResult.reasons,
+      reasons: decisionResult.reasons || null,
       trace: decisionResult.trace,
       created_at: new Date().toISOString()
     });
 
     /* 7. Frontend-ready response */
-    res.json({
+    return res.json({
       success: true,
       data: decisionResult,
       usage: {
@@ -132,9 +137,10 @@ router.post("/decision", async (req, res) => {
             : decisionLimit - (usage.used_decisions + 1)
       }
     });
+
   } catch (err) {
     console.error("DECISION ROUTE ERROR:", err);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       error: err.message || "DECISION_FAILED"
     });
