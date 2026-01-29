@@ -1,18 +1,26 @@
 // src/core/learningEngine.js
 
+/**
+ * Hard safety clamp
+ */
 function clamp(v, min = 0, max = 1) {
   return Math.max(min, Math.min(max, v));
 }
 
 /**
- * Compute learning bias from past decisions
+ * Learn behavioral bias from past decisions
+ * history = [{ action, confidence, risk }]
  */
-function computeLearningBias(history = []) {
-  if (!history.length) {
-    return { confidenceBias: 0, riskBias: 0 };
+function learnFromHistory(history = []) {
+  if (!Array.isArray(history) || history.length === 0) {
+    return {
+      confidenceBias: 0,
+      riskBias: 0
+    };
   }
 
-  const recent = history.slice(-10); // last 10 decisions
+  // last 20 decisions (more signal, still safe)
+  const recent = history.slice(0, 20);
 
   let positive = 0;
   let negative = 0;
@@ -22,20 +30,32 @@ function computeLearningBias(history = []) {
     if (d.action === "PAUSE" || d.action === "KILL") negative++;
   });
 
-  const confidenceBias = clamp((positive - negative) * 0.05, -0.2, 0.2);
-  const riskBias = clamp(negative * 0.03, 0, 0.3);
+  /**
+   * Bias logic:
+   * - Confidence grows slowly
+   * - Risk grows faster (safety first)
+   */
+  const confidenceBias = clamp((positive - negative) * 0.03, -0.25, 0.25);
+  const riskBias = clamp(negative * 0.04, 0, 0.4);
 
   return { confidenceBias, riskBias };
 }
 
+/**
+ * Apply learning bias to current decision
+ */
 function applyLearning(decision, history) {
-  const { confidenceBias, riskBias } = computeLearningBias(history);
+  if (!decision) return decision;
+
+  const { confidenceBias, riskBias } = learnFromHistory(history);
 
   return {
     ...decision,
-    confidence: clamp(decision.confidence + confidenceBias),
-    risk: clamp(decision.risk + riskBias)
+    confidence: clamp((decision.confidence ?? 0.5) + confidenceBias),
+    risk: clamp((decision.risk ?? 0) + riskBias)
   };
 }
 
-module.exports = { applyLearning };
+module.exports = {
+  applyLearning
+};
