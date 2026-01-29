@@ -1,36 +1,23 @@
-// index.js
-
 const express = require("express");
 const app = express();
 
-/**
- * Middlewares
- */
-app.use(express.json());
+const requestContext = require("./src/middlewares/requestContext");
+const rateLimit = require("./src/middlewares/rateLimit");
+const errorHandler = require("./src/middlewares/errorHandler");
 
-/**
- * Routes
- */
 const decisionRoutes = require("./src/routes/decision.routes");
-const analyticsRoutes = require("./src/routes/analytics.routes");
+const systemRoutes = require("./src/routes/system.routes");
 
-/**
- * Mount API routes
- */
+app.use(express.json({ limit: "1mb" }));
+app.use(requestContext);
+app.use(rateLimit);
+
 app.use("/api", decisionRoutes);
-app.use("/api", analyticsRoutes);
+app.use("/system", systemRoutes);
 
-/**
- * Health check
- */
-app.get("/", (req, res) => {
-  res.send("Soullytics Backend is running 🚀");
-});
+app.use(errorHandler);
 
-/**
- * Server
- */
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Soullytics backend running on port ${PORT}`);
-});
+app.listen(PORT, () =>
+  console.log(`🚀 Soullytics running on port ${PORT}`)
+);
