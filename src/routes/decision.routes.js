@@ -1,18 +1,37 @@
+// src/routes/decision.routes.js
+
 const express = require("express");
 const router = express.Router();
 
 const DecisionOrchestrator = require("../core/decisionOrchestrator");
 const adsCodeRegistry = require("../engines/adsCodeRegistry");
+
 const resolveUser = require("../core/decisionPersistence");
 const supabase = require("../config/supabaseClient");
 
+// ✅ NEW: data intake & validation layer
+const dataIntakeController = require("../data/dataIntake.controller");
+
 /**
  * POST /api/decision
+ * body:
+ * {
+ *   email: string,
+ *   plan: "starter" | "growth" | "pro" | "agency",
+ *   platform: "google" | "meta" | "adsterra",
+ *   raw: { ...ads data... }
+ * }
  */
 router.post("/decision", async (req, res) => {
   try {
-    const { email, plan = "starter", ...input } = req.body;
+    const {
+      email,
+      plan = "starter",
+      platform,
+      raw
+    } = req.body;
 
+    /* 0. Basic validation */
     if (!email) {
       return res.status(400).json({
         success: false,
@@ -20,7 +39,14 @@ router.post("/decision", async (req, res) => {
       });
     }
 
-    /* 1. Resolve user + usage */
+    if (!platform || !raw) {
+      return res.status(400).json({
+        success: false,
+        error: "PLATFORM_OR_RAW_DATA_MISSING"
+      });
+    }
+
+    /* 1. Resolve user + usage row */
     const user = await resolveUser(email, plan);
 
     const month = new Date().toISOString().slice(0, 7);
@@ -53,13 +79,34 @@ router.post("/decision", async (req, res) => {
       });
     }
 
-    /* 3. Run engines (NO ENGINE CHANGE) */
+    /* 3. DATA INTAKE & VALIDATION (CRITICAL LAYER) */
+    const intake = dataIntakeController({
+      platform,
+      raw
+    });
+
+    if (!intake.ok) {
+      return res.status(400).json({
+        success: false,
+        stage: "DATA_VALIDATION_FAILED",
+        errors: intake.errors
+      });
+    }
+
+    /* 4. Run decision engines (NO ENGINE CHANGE) */
     const engines = Object.values(adsCodeRegistry);
     const orchestrator = new DecisionOrchestrator(engines);
 
-    const decisionResult = await orchestrator.run(input);
+    const decisionResult = await orchestrator.run({
+      metrics: intake.metrics,
+      context: {
+        userId: user.id,
+        plan,
+        platform
+      }
+    });
 
-    /* 4. Increment usage */
+    /* 5. Increment usage */
     await supabase
       .from("usage_limits")
       .update({
@@ -67,18 +114,20 @@ router.post("/decision", async (req, res) => {
       })
       .eq("id", usage.id);
 
-    /* 5. Save decision */
+    /* 6. Save decision */
     await supabase.from("decisions").insert({
       user_id: user.id,
       plan,
+      platform,
       action: decisionResult.action,
       confidence: decisionResult.confidence,
       risk: decisionResult.risk,
+      reasons: decisionResult.reasons,
       trace: decisionResult.trace,
       created_at: new Date().toISOString()
     });
 
-    /* 6. Response */
+    /* 7. Frontend-ready response */
     res.json({
       success: true,
       data: decisionResult,
@@ -96,7 +145,7 @@ router.post("/decision", async (req, res) => {
     console.error("DECISION ROUTE ERROR:", err);
     res.status(500).json({
       success: false,
-      error: err.message
+      error: err.message || "DECISION_FAILED"
     });
   }
 });
