@@ -7,32 +7,24 @@ const DecisionOrchestrator = require("../core/decisionOrchestrator");
 const adsCodeRegistry = require("../engines/adsCodeRegistry");
 
 const resolveUser = require("../core/decisionPersistence");
-const supabase = require("../config/supabaseClient");
+const usageGuard = require("../core/usageGuard");
 
-// Data intake / normalization layer
 const dataIntakeController = require("../data/dataIntake.controller");
+const supabase = require("../config/supabaseClient");
 
 /**
  * POST /api/decision
- *
- * body:
- * {
- *   email: string,
- *   plan: "starter" | "growth" | "pro" | "agency",
- *   platform: "google" | "meta" | "generic",
- *   raw: { ...ads data... }
- * }
  */
 router.post("/decision", async (req, res) => {
   try {
     const {
       email,
-      plan = "starter",
-      platform,
+      plan = "free",
+      platform = "generic",
       raw
     } = req.body;
 
-    /* 0. Basic validation */
+    /* 1. Basic validation */
     if (!email) {
       return res.status(400).json({
         success: false,
@@ -40,46 +32,28 @@ router.post("/decision", async (req, res) => {
       });
     }
 
-    if (!platform || !raw) {
+    if (!raw) {
       return res.status(400).json({
         success: false,
-        error: "PLATFORM_OR_RAW_DATA_MISSING"
+        error: "RAW_DATA_REQUIRED"
       });
     }
 
-    /* 1. Resolve user + usage */
+    /* 2. Resolve user */
     const user = await resolveUser(email, plan);
-    const month = new Date().toISOString().slice(0, 7);
 
-    const { data: usage, error: usageErr } = await supabase
-      .from("usage_limits")
-      .select("*")
-      .eq("user_id", user.id)
-      .eq("month", month)
-      .single();
+    /* 3. Usage guard (FREE / PAID logic lives here) */
+    const usage = await usageGuard(user);
 
-    if (usageErr) throw usageErr;
-
-    /* 2. Plan limits */
-    const LIMITS = {
-      starter: 50,
-      growth: 500,
-      pro: 5000,
-      agency: Infinity
-    };
-
-    const decisionLimit = LIMITS[plan] ?? 50;
-
-    if (usage.used_decisions >= decisionLimit) {
+    if (!usage.allowed) {
       return res.status(402).json({
         success: false,
-        error: "LIMIT_EXCEEDED",
-        used: usage.used_decisions,
-        limit: decisionLimit
+        error: "USAGE_LIMIT_REACHED",
+        usage
       });
     }
 
-    /* 3. Data intake & validation (CRITICAL LAYER) */
+    /* 4. Data intake & validation (CRITICAL LAYER) */
     const intake = dataIntakeController({
       platform,
       raw
@@ -93,25 +67,20 @@ router.post("/decision", async (req, res) => {
       });
     }
 
-    /* 4. Run decision engines */
+    /* 5. Run decision engines */
     const engines = Object.values(adsCodeRegistry);
     const orchestrator = new DecisionOrchestrator(engines);
 
     const decisionResult = await orchestrator.run({
       metrics: intake.metrics,
-      plan,
-      userId: user.id
+      context: {
+        userId: user.id,
+        plan,
+        platform
+      }
     });
 
-    /* 5. Increment usage */
-    await supabase
-      .from("usage_limits")
-      .update({
-        used_decisions: usage.used_decisions + 1
-      })
-      .eq("id", usage.id);
-
-    /* 6. Save decision */
+    /* 6. Persist decision (NON BLOCKING OK) */
     await supabase.from("decisions").insert({
       user_id: user.id,
       plan,
@@ -119,27 +88,21 @@ router.post("/decision", async (req, res) => {
       action: decisionResult.action,
       confidence: decisionResult.confidence,
       risk: decisionResult.risk,
-      reasons: decisionResult.reasons || null,
-      trace: decisionResult.trace,
+      reasons: decisionResult.reasons || [],
+      trace: decisionResult.trace || {},
       created_at: new Date().toISOString()
     });
 
-    /* 7. Frontend-ready response */
+    /* 7. Final response */
     return res.json({
       success: true,
       data: decisionResult,
-      usage: {
-        used: usage.used_decisions + 1,
-        limit: decisionLimit,
-        remaining:
-          decisionLimit === Infinity
-            ? Infinity
-            : decisionLimit - (usage.used_decisions + 1)
-      }
+      usage
     });
 
   } catch (err) {
     console.error("DECISION ROUTE ERROR:", err);
+
     return res.status(500).json({
       success: false,
       error: err.message || "DECISION_FAILED"
