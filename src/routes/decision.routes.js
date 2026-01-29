@@ -5,6 +5,7 @@ const router = express.Router();
 
 /* Core */
 const DecisionOrchestrator = require("../core/decisionOrchestrator");
+const ExplainabilityEngine = require("../core/explainabilityEngine");
 const adsCodeRegistry = require("../engines/adsCodeRegistry");
 
 /* Middlewares */
@@ -19,7 +20,7 @@ const supabase = require("../config/supabaseClient");
 
 /**
  * POST /api/decision
- * Protected via API Key
+ * Protected via API key
  */
 router.post("/decision", apiKeyAuth, async (req, res) => {
   try {
@@ -67,7 +68,10 @@ router.post("/decision", apiKeyAuth, async (req, res) => {
       },
     });
 
-    /* 5. Increment usage */
+    /* 5. Explainability (CRITICAL FIX) */
+    const explanation = ExplainabilityEngine.run(decision);
+
+    /* 6. Increment usage */
     await supabase
       .from("usage_limits")
       .update({
@@ -75,7 +79,7 @@ router.post("/decision", apiKeyAuth, async (req, res) => {
       })
       .eq("user_id", userId);
 
-    /* 6. Persist decision */
+    /* 7. Persist decision */
     await supabase.from("decisions").insert({
       user_id: userId,
       plan,
@@ -88,10 +92,13 @@ router.post("/decision", apiKeyAuth, async (req, res) => {
       created_at: new Date().toISOString(),
     });
 
-    /* 7. Response */
+    /* 8. Response */
     return res.json({
       success: true,
-      data: decision,
+      data: {
+        ...decision,
+        explanation,
+      },
       usage: {
         used: usage.used + 1,
         limit: usage.limit,
