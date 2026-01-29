@@ -1,61 +1,53 @@
 // src/core/explainabilityEngine.js
 
 class ExplainabilityEngine {
-  constructor(context = {}) {
-    this.context = context;
-  }
-
-  run(decision, trace) {
+  static run(decision) {
     const explanations = [];
+    const suggestions = new Set();
 
-    const metrics = this.context.metrics || {};
-
-    if (metrics.ctr !== undefined && metrics.ctr < 0.5) {
-      explanations.push("Low CTR indicates weak creative or audience mismatch");
+    // ---- Aggregate reasons from engines that influenced final action
+    if (Array.isArray(decision.trace)) {
+      decision.trace.forEach((engine) => {
+        if (engine.action === decision.action) {
+          (engine.reasons || []).forEach((r) => explanations.push(r));
+          (engine.suggestions || []).forEach((s) => suggestions.add(s));
+        }
+      });
     }
 
-    if (
-      metrics.cpa !== undefined &&
-      this.context.expectedCPA !== undefined &&
-      metrics.cpa > this.context.expectedCPA
-    ) {
-      explanations.push("CPA is higher than expected threshold");
-    }
-
-    if (
-      this.context.budget !== undefined &&
-      this.context.minimumBudget !== undefined &&
-      this.context.budget < this.context.minimumBudget
-    ) {
-      explanations.push("Budget is too low for selected objective");
-    }
-
-    if (decision.risk >= 0.7) {
-      explanations.push("High overall risk detected across engines");
+    // ---- Global signals
+    if (decision.risk >= 0.85) {
+      explanations.push("High systemic risk detected across engines");
     }
 
     if (decision.confidence < 0.4) {
-      explanations.push("Low confidence due to unstable signals");
+      explanations.push("Low confidence due to conflicting signals");
     }
 
-    if (decision.action === "SCALE") {
-      explanations.push("Strong performance justifies scaling");
-    }
-
-    if (decision.action === "PAUSE") {
-      explanations.push("Pausing to prevent budget waste");
-    }
-
-    if (decision.action === "KILL") {
-      explanations.push("Critical failure — stopping campaign");
+    // ---- Action specific headline
+    let headline;
+    switch (decision.action) {
+      case "RUN":
+        headline = "Campaign signals are healthy";
+        break;
+      case "PAUSE":
+        headline = "Risk detected — pausing to prevent waste";
+        break;
+      case "KILL":
+        headline = "Critical risk detected — campaign stopped";
+        break;
+      default:
+        headline = "Decision generated";
     }
 
     return {
       engine: "ExplainabilityEngine",
-      headline: decision.action,
-      explanations,
+      action: decision.action,
+      headline,
       confidence: decision.confidence,
-      enginesEvaluated: trace?.summary?.enginesEvaluated || 0
+      risk: decision.risk,
+      why: explanations.slice(0, 5),
+      suggested_fixes: Array.from(suggestions).slice(0, 5),
     };
   }
 }
