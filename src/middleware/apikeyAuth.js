@@ -1,38 +1,46 @@
 const supabase = require("../config/supabaseClient");
 
-module.exports = async function apiKeyAuth(req, res, next) {
+async function apiKeyAuth(req, res, next) {
   try {
-    const auth = req.headers.authorization || "";
+    const apiKey =
+      req.headers["x-api-key"] ||
+      req.headers["authorization"]?.replace("Bearer ", "");
 
-    if (!auth.startsWith("Bearer ")) {
+    if (!apiKey) {
       return res.status(401).json({
-        error: "API_KEY_REQUIRED"
+        success: false,
+        error: "API_KEY_MISSING",
       });
     }
 
-    const apiKey = auth.replace("Bearer ", "").trim();
-
-    const { data, error } = await supabase
+    const { data: keyRow, error } = await supabase
       .from("api_keys")
-      .select("user_id, plan, status")
+      .select("*")
       .eq("api_key", apiKey)
+      .eq("status", "active")
       .single();
 
-    if (error || !data || data.status !== "active") {
+    if (error || !keyRow) {
       return res.status(401).json({
-        error: "INVALID_API_KEY"
+        success: false,
+        error: "INVALID_API_KEY",
       });
     }
 
-    req.user = {
-      id: data.user_id,
-      plan: data.plan || "free"
+    req.apiUser = {
+      userId: keyRow.user_id,
+      plan: keyRow.plan,
+      apiKeyId: keyRow.id,
     };
 
     next();
   } catch (err) {
+    console.error("API KEY AUTH ERROR:", err);
     return res.status(500).json({
-      error: "AUTH_FAILED"
+      success: false,
+      error: "AUTH_FAILED",
     });
   }
-};
+}
+
+module.exports = apiKeyAuth;
