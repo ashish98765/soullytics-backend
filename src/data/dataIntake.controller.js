@@ -1,46 +1,49 @@
 // src/data/dataIntake.controller.js
 
-const googleNormalizer = require("./normalizers/google.normalizer");
-const metaNormalizer = require("./normalizers/meta.normalizer");
-const openAdsNormalizer = require("./normalizers/openAds.normalizer");
+const googleSchema = require("./schemas/google.schema");
+const metaSchema = require("./schemas/meta.schema");
+
+const normalizeGoogle = require("./normalizers/google.normalizer");
+const normalizeMeta = require("./normalizers/meta.normalizer");
+
+function validate(schema, raw) {
+  const errors = [];
+
+  for (const key of schema.required) {
+    if (raw[key] === undefined || raw[key] === null) {
+      errors.push(`MISSING_${key.toUpperCase()}`);
+    }
+  }
+
+  for (const key of schema.numeric) {
+    if (raw[key] !== undefined && !Number.isFinite(Number(raw[key]))) {
+      errors.push(`NON_NUMERIC_${key.toUpperCase()}`);
+    }
+  }
+
+  return errors;
+}
 
 module.exports = function dataIntakeController({ platform, raw }) {
   try {
-    let normalized;
-
-    switch (platform) {
-      case "google":
-        normalized = googleNormalizer(raw);
-        break;
-
-      case "meta":
-        normalized = metaNormalizer(raw);
-        break;
-
-      case "openAds": // 👈 NOT adsterra
-        normalized = openAdsNormalizer(raw);
-        break;
-
-      default:
-        return {
-          ok: false,
-          errors: [`Unsupported platform: ${platform}`]
-        };
+    if (!platform || !raw) {
+      return { ok: false, errors: ["PLATFORM_OR_RAW_MISSING"] };
     }
 
-    if (!normalized.ok) {
-      return normalized;
+    if (platform === "google") {
+      const errors = validate(googleSchema, raw);
+      if (errors.length) return { ok: false, errors };
+      return { ok: true, metrics: normalizeGoogle(raw) };
     }
 
-    return {
-      ok: true,
-      metrics: normalized.metrics
-    };
+    if (platform === "meta") {
+      const errors = validate(metaSchema, raw);
+      if (errors.length) return { ok: false, errors };
+      return { ok: true, metrics: normalizeMeta(raw) };
+    }
 
-  } catch (err) {
-    return {
-      ok: false,
-      errors: [err.message]
-    };
+    return { ok: false, errors: ["UNSUPPORTED_PLATFORM"] };
+  } catch (e) {
+    return { ok: false, errors: ["INTAKE_CRASH", e.message] };
   }
 };
