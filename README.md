@@ -1,46 +1,105 @@
-# Soullytics Backend 🧠
+# SpendGuard Backend  
+### Powered by Soullytics Decision Engine
 
-Soullytics is an AI-powered decision firewall for paid advertising.
+SpendGuard is an AI-powered **decision firewall for paid advertising**.
 
-Instead of blindly spending money, Soullytics evaluates campaigns
-across 50+ decision engines before allowing execution.
+It evaluates ad performance data and returns **one clear, explainable action**:
+**RUN, PAUSE, KILL, or SCALE**.
 
-## What Soullytics Does
-
-- Analyzes campaign objectives, budget, platform & risk
-- Runs 50+ independent decision engines
-- Produces a single clear action:
-  - RUN
-  - PAUSE
-  - KILL
-- Explains *why* the decision was made
-
-This system is designed to **prevent waste before it happens**.
+This backend exists to **protect ad spend**, stop emotional decisions, and enforce budget discipline.
 
 ---
 
-## API: Campaign Decision
+## 🎯 What SpendGuard Does
 
-### POST /api/decision
+SpendGuard is NOT:
+- an ad generator
+- an analytics dashboard
+- a reporting tool
 
-Evaluates an ad campaign and returns a decision.
+SpendGuard IS:
+- a decision system
+- a risk evaluator
+- a spend-protection layer
 
-### Required Fields
+Given ad data, it decides **whether ads should continue at all**.
 
-| Field | Type |
-|------|------|
-| objective | string |
-| platform | string |
-| budget | number |
-| metrics | object |
+---
 
-### Response
+## 🧠 Core Principles
+
+### 1. Decision > Data
+SpendGuard does not overwhelm users with metrics.
+It returns **one decision** and explains it.
+
+### 2. Explainability First
+Every decision includes:
+- confidence score
+- risk score
+- human-readable reasons
+- actionable prescriptions
+
+### 3. Deterministic Logic
+The same input always produces the same output.
+No black-box randomness.
+
+---
+
+## 🏗️ Architecture Overview
+src/ ├── core/ │   ├── decisionEngine.js │   ├── decisionOrchestrator.js │   ├── explainabilityEngine.js │   ├── prescriptionEngine.js │ ├── engines/ │   ├── adscode01.objectiveClarity.js │   ├── adscode02.budgetReality.js │   ├── adscode03.platformSelection.js │   ├── ... │   └── adscodeXX.finalComposer.js │ ├── routes/ │   └── decision.routes.js │ ├── middleware/ │   ├── apiKeyAuth.js │   └── usageGuard.js │ ├── utils/ │   └── validators.js │ └── index.js
+
+---
+
+## 🔐 Authentication
+
+All requests require an API key.
+
+Send the key in request headers:
+
+Requests without a valid key are rejected.
+
+---
+
+## 📡 API Endpoint
+
+### POST `/api/v1/decision`
+
+#### Headers
+
+#### Request Body Example
 
 ```json
 {
-  "action": "PAUSE",
-  "confidence": 0.42,
-  "risk": "MEDIUM",
-  "reasons": [],
-  "trace": {}
+  "platform": "meta",
+  "raw": {
+    "ctr": 0.7,
+    "cpa": 720,
+    "spend": 1500,
+    "conversions": 3
+  },
+  "budget": 300,
+  "minimumBudget": 1000,
+  "expectedCPA": 700
 }
+
+
+#### Response
+
+{
+  "success": true,
+  "data": {
+    "action": "PAUSE",
+    "confidence": 0.42,
+    "risk": 0.68,
+    "reasons": [
+      "Budget too low",
+      "CPA higher than expected"
+    ],
+    "trace": {}
+  },
+  "usage": {
+    "used": 14,
+    "limit": 50
+  }
+}
+
