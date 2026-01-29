@@ -1,20 +1,32 @@
+// src/routes/decision.routes.js
+
 const express = require("express");
 const router = express.Router();
 
+/* Core */
 const DecisionOrchestrator = require("../core/decisionOrchestrator");
 const adsCodeRegistry = require("../engines/adsCodeRegistry");
 
-const apiKeyAuth = require("../middleware/apiKeyAuth");
+/* Middlewares */
+const apiKeyAuth = require("../middlewares/apiKeyAuth");
+
+/* Guards & Controllers */
 const checkUsage = require("../core/usageGuard");
 const dataIntakeController = require("../data/dataIntake.controller");
 
+/* DB */
 const supabase = require("../config/supabaseClient");
 
+/**
+ * POST /api/decision
+ * Protected via API Key
+ */
 router.post("/decision", apiKeyAuth, async (req, res) => {
   try {
     const { platform, raw } = req.body;
     const { userId, plan } = req.apiUser;
 
+    /* 1. Basic validation */
     if (!platform || !raw) {
       return res.status(400).json({
         success: false,
@@ -22,7 +34,7 @@ router.post("/decision", apiKeyAuth, async (req, res) => {
       });
     }
 
-    /* 1. Usage check */
+    /* 2. Usage guard */
     const usage = await checkUsage(userId, plan);
     if (!usage.allowed) {
       return res.status(402).json({
@@ -32,7 +44,7 @@ router.post("/decision", apiKeyAuth, async (req, res) => {
       });
     }
 
-    /* 2. Data intake */
+    /* 3. Data intake & normalization */
     const intake = dataIntakeController({ platform, raw });
     if (!intake.ok) {
       return res.status(400).json({
@@ -42,7 +54,7 @@ router.post("/decision", apiKeyAuth, async (req, res) => {
       });
     }
 
-    /* 3. Run orchestrator */
+    /* 4. Run decision orchestrator */
     const engines = Object.values(adsCodeRegistry);
     const orchestrator = new DecisionOrchestrator(engines);
 
@@ -55,7 +67,7 @@ router.post("/decision", apiKeyAuth, async (req, res) => {
       },
     });
 
-    /* 4. Increment usage */
+    /* 5. Increment usage */
     await supabase
       .from("usage_limits")
       .update({
@@ -63,7 +75,7 @@ router.post("/decision", apiKeyAuth, async (req, res) => {
       })
       .eq("user_id", userId);
 
-    /* 5. Persist decision */
+    /* 6. Persist decision */
     await supabase.from("decisions").insert({
       user_id: userId,
       plan,
@@ -71,11 +83,12 @@ router.post("/decision", apiKeyAuth, async (req, res) => {
       action: decision.action,
       confidence: decision.confidence,
       risk: decision.risk,
-      reasons: decision.reasons,
-      trace: decision.trace,
+      reasons: decision.reasons || null,
+      trace: decision.trace || null,
       created_at: new Date().toISOString(),
     });
 
+    /* 7. Response */
     return res.json({
       success: true,
       data: decision,
