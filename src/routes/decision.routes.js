@@ -9,18 +9,11 @@ const adsCodeRegistry = require("../engines/adsCodeRegistry");
 const resolveUser = require("../core/decisionPersistence");
 const supabase = require("../config/supabaseClient");
 
-// ✅ NEW: data intake & validation layer
+// DATA INTAKE LAYER
 const dataIntakeController = require("../data/dataIntake.controller");
 
 /**
  * POST /api/decision
- * body:
- * {
- *   email: string,
- *   plan: "starter" | "growth" | "pro" | "agency",
- *   platform: "google" | "meta" | "adsterra",
- *   raw: { ...ads data... }
- * }
  */
 router.post("/decision", async (req, res) => {
   try {
@@ -46,9 +39,8 @@ router.post("/decision", async (req, res) => {
       });
     }
 
-    /* 1. Resolve user + usage row */
+    /* 1. Resolve user + usage */
     const user = await resolveUser(email, plan);
-
     const month = new Date().toISOString().slice(0, 7);
 
     const { data: usage, error: usageErr } = await supabase
@@ -79,7 +71,7 @@ router.post("/decision", async (req, res) => {
       });
     }
 
-    /* 3. DATA INTAKE & VALIDATION (CRITICAL LAYER) */
+    /* 3. DATA INTAKE & VALIDATION (CRITICAL) */
     const intake = dataIntakeController({
       platform,
       raw
@@ -140,7 +132,6 @@ router.post("/decision", async (req, res) => {
             : decisionLimit - (usage.used_decisions + 1)
       }
     });
-
   } catch (err) {
     console.error("DECISION ROUTE ERROR:", err);
     res.status(500).json({
