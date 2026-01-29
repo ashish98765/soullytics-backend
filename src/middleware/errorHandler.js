@@ -1,12 +1,19 @@
-// src/middleware/errorHandler.js
+module.exports = (err, req, res, next) => {
+  const status = err.status || 500;
+  const code = err.code || "INTERNAL_ERROR";
 
-function errorHandler(err, req, res, next) {
-  console.error("Global Error:", err);
-
-  res.status(500).json({
-    success: false,
-    error: "Internal server error"
+  console.error("❌ ERROR", {
+    code,
+    status,
+    message: err.message,
+    path: req.originalUrl,
+    traceId: req.traceId
   });
-}
 
-module.exports = errorHandler;
+  res.status(status).json({
+    success: false,
+    error: code,
+    message: err.message || "Something went wrong",
+    traceId: req.traceId
+  });
+};
