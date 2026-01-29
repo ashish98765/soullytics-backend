@@ -1,103 +1,158 @@
 // src/core/decisionOrchestrator.js
 
 const DecisionEngine = require("./decisionEngine");
-const adjustAction = require("./finalDecisionAdjuster");
-const { applyLearning } = require("./learningEngine");
-const { fetchHistory } = require("./learningRepository");
+const engineResult = require("./engineResult");
+const { buildDecisionTrace } = require("./decisionTrace");
+const ExplainabilityEngine = require("./explainabilityEngine");
 
-/**
- * DecisionOrchestrator
- * Runs all adscode engines safely
- * Aggregates signals
- * Applies learning & safety
- * Returns ONE final action
- */
+const {
+  saveDecision,
+  updateEngineStats,
+  detectPatterns
+} = require("./decisionLearning");
+
+const calibrateConfidence = require("./confidenceLearner");
+const adjustAction = require("./finalDecisionAdjuster");
+
+function detectGroup(engineName = "") {
+  const name = engineName.toLowerCase();
+  if (name.includes("creative")) return "CREATIVE";
+  if (name.includes("budget")) return "BUDGET";
+  if (name.includes("audience")) return "AUDIENCE";
+  if (name.includes("risk")) return "RISK";
+  if (name.includes("scale")) return "SCALING";
+  return "GENERAL";
+}
+
+function mapSeverity(status) {
+  if (status === "FAIL") return "HIGH";
+  if (status === "WARNING") return "MEDIUM";
+  return "LOW";
+}
+
 class DecisionOrchestrator {
   constructor(engines = []) {
     this.engines = engines;
   }
 
-  async run({ metrics = {}, context = {} } = {}) {
+  async run(payload = {}) {
     const decisionEngine = new DecisionEngine();
     const collected = [];
 
-    /* 1. Run all engines safely */
+    /** 1. Run engines safely */
     for (const Engine of this.engines) {
       try {
         const instance =
-          typeof Engine === "function" ? new Engine(metrics) : Engine;
+          typeof Engine === "function" ? new Engine(payload) : Engine;
 
         if (!instance || typeof instance.run !== "function") continue;
 
         const result = await instance.run();
-        this._normalize(result, collected);
+
+        collected.push(
+          engineResult({
+            engine: instance.constructor.name,
+            group: detectGroup(instance.constructor.name),
+            status: result.status || "PASS",
+            severity: mapSeverity(result.status || "PASS"),
+            score: result.score || 0,
+            risk: result.risk || 0,
+            confidence: result.confidence ?? 0.5,
+            message: result.message || ""
+          })
+        );
       } catch (err) {
-        collected.push({
-          status: "FAIL",
-          score: 0,
-          risk: 1,
-          confidence: 0,
-          message: err.message || "ENGINE_CRASH"
-        });
+        collected.push(
+          engineResult({
+            engine: Engine?.name || "UnknownEngine",
+            group: detectGroup(Engine?.name),
+            status: "FAIL",
+            severity: "HIGH",
+            score: 0,
+            risk: 1,
+            confidence: 0,
+            message: err.message || "Engine crashed"
+          })
+        );
       }
     }
 
-    /* 2. Register signals */
+    /** 2. Resolve decision */
     collected.forEach(r => decisionEngine.register(r));
-    let decision = decisionEngine.resolve();
+    const decision = decisionEngine.resolve();
 
-    /* 3. Failure ratio (global safety metric) */
+    /** 3. Metrics */
     const total = collected.length || 1;
     const failCount = collected.filter(r => r.status === "FAIL").length;
     const failRatio = failCount / total;
 
-    /* 4. Learning (NON-BLOCKING, SAFE) */
-    if (context.userId) {
-      const history = await fetchHistory(context.userId, 20);
-      decision = applyLearning(decision, history);
-    }
-
-    /* 5. Final action adjustment */
-    const finalAction = adjustAction(
-      decision.action,
-      decision.confidence,
+    /** 4. Learning */
+    const learnedConfidence = calibrateConfidence(
+      decision.confidence || 0,
+      total,
       failRatio
     );
 
-    /* 6. Final response (single truth) */
+    const finalAction = adjustAction(
+      decision.action,
+      learnedConfidence,
+      failRatio
+    );
+
+    /** 5. Final status */
+    const finalStatus =
+      finalAction === "KILL"
+        ? "FAIL"
+        : finalAction === "PAUSE"
+        ? "WARNING"
+        : "PASS";
+
+    /** 6. Async learning (non-blocking) */
+    try {
+      if (payload.context?.userId) {
+        saveDecision(
+          payload.context.userId,
+          {
+            action: finalAction,
+            score: decision.score || 0,
+            risk: decision.risk || 0,
+            confidence: learnedConfidence,
+            finalStatus
+          },
+          { failCount, total }
+        );
+
+        updateEngineStats(collected);
+        detectPatterns(payload.context.userId, { action: finalAction });
+      }
+    } catch (e) {
+      console.error("Learning layer error:", e.message);
+    }
+
+    /** 7. Trace + Explainability */
+    const trace = buildDecisionTrace(collected, finalAction, learnedConfidence);
+
+    const explainability = new ExplainabilityEngine(payload.context || {});
+    const explanation = explainability.run(
+      { ...decision, action: finalAction, confidence: learnedConfidence },
+      trace
+    );
+
+    /** 8. Final response */
     return {
       action: finalAction,
-      score: decision.score,
-      risk: decision.risk,
-      confidence: decision.confidence,
+      score: decision.score || 0,
+      risk: decision.risk || 0,
+      confidence: learnedConfidence,
       reasons: decision.reasons || [],
+      explanation,
+      trace,
       meta: {
         enginesRun: total,
         enginesFailed: failCount,
         failRatio
       }
     };
-  }
-
-  /* Normalize engine outputs into safe signals */
-  _normalize(result, bucket) {
-    if (!result) return;
-
-    if (Array.isArray(result)) {
-      result.forEach(r => this._normalize(r, bucket));
-      return;
-    }
-
-    bucket.push({
-      status: result.status || "PASS",
-      score: Number(result.score) || 0,
-      risk: Number(result.risk) || 0,
-      confidence:
-        Number.isFinite(Number(result.confidence))
-          ? Number(result.confidence)
-          : 0.5,
-      message: result.message || ""
-    });
   }
 }
 
