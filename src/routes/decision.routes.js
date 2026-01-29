@@ -1,33 +1,38 @@
-// src/routes/decision.routes.js
-
 const express = require("express");
 const router = express.Router();
 
 /* Core */
 const DecisionOrchestrator = require("../core/decisionOrchestrator");
-const ExplainabilityEngine = require("../core/explainabilityEngine");
 const adsCodeRegistry = require("../engines/adsCodeRegistry");
 
 /* Middlewares */
 const apiKeyAuth = require("../middlewares/apiKeyAuth");
 
-/* Guards & Controllers */
+/* Guards */
 const checkUsage = require("../core/usageGuard");
+
+/* Controllers */
 const dataIntakeController = require("../data/dataIntake.controller");
 
 /* DB */
 const supabase = require("../config/supabaseClient");
 
 /**
- * POST /api/decision
- * Protected via API key
+ * POST /api/v1/decision
+ * Protected via API Key
  */
 router.post("/decision", apiKeyAuth, async (req, res) => {
   try {
+    if (process.env.SOULLYTICS_DISABLED === "true") {
+      return res.status(503).json({
+        success: false,
+        error: "SERVICE_TEMPORARILY_DISABLED",
+      });
+    }
+
     const { platform, raw } = req.body;
     const { userId, plan } = req.apiUser;
 
-    /* 1. Basic validation */
     if (!platform || !raw) {
       return res.status(400).json({
         success: false,
@@ -35,7 +40,7 @@ router.post("/decision", apiKeyAuth, async (req, res) => {
       });
     }
 
-    /* 2. Usage guard */
+    /* 1. Usage Guard */
     const usage = await checkUsage(userId, plan);
     if (!usage.allowed) {
       return res.status(402).json({
@@ -45,7 +50,7 @@ router.post("/decision", apiKeyAuth, async (req, res) => {
       });
     }
 
-    /* 3. Data intake & normalization */
+    /* 2. Data Intake */
     const intake = dataIntakeController({ platform, raw });
     if (!intake.ok) {
       return res.status(400).json({
@@ -55,31 +60,22 @@ router.post("/decision", apiKeyAuth, async (req, res) => {
       });
     }
 
-    /* 4. Run decision orchestrator */
+    /* 3. Decision Engines */
     const engines = Object.values(adsCodeRegistry);
     const orchestrator = new DecisionOrchestrator(engines);
 
     const decision = await orchestrator.run({
       metrics: intake.metrics,
-      context: {
-        userId,
-        plan,
-        platform,
-      },
+      context: { userId, plan, platform },
     });
 
-    /* 5. Explainability (CRITICAL FIX) */
-    const explanation = ExplainabilityEngine.run(decision);
-
-    /* 6. Increment usage */
+    /* 4. Increment Usage */
     await supabase
       .from("usage_limits")
-      .update({
-        used_decisions: usage.used + 1,
-      })
+      .update({ used_decisions: usage.used + 1 })
       .eq("user_id", userId);
 
-    /* 7. Persist decision */
+    /* 5. Persist Decision */
     await supabase.from("decisions").insert({
       user_id: userId,
       plan,
@@ -87,18 +83,15 @@ router.post("/decision", apiKeyAuth, async (req, res) => {
       action: decision.action,
       confidence: decision.confidence,
       risk: decision.risk,
-      reasons: decision.reasons || null,
-      trace: decision.trace || null,
+      reasons: decision.reasons,
+      trace: decision.trace,
       created_at: new Date().toISOString(),
     });
 
-    /* 8. Response */
+    /* 6. Response */
     return res.json({
       success: true,
-      data: {
-        ...decision,
-        explanation,
-      },
+      data: decision,
       usage: {
         used: usage.used + 1,
         limit: usage.limit,
@@ -108,7 +101,7 @@ router.post("/decision", apiKeyAuth, async (req, res) => {
     console.error("DECISION API ERROR:", err);
     return res.status(500).json({
       success: false,
-      error: err.message || "DECISION_FAILED",
+      error: "DECISION_FAILED",
     });
   }
 });
