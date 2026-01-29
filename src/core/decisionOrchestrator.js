@@ -1,157 +1,82 @@
 // src/core/decisionOrchestrator.js
 
-const DecisionEngine = require("./decisionEngine");
-const engineResult = require("./engineResult");
-const { buildDecisionTrace } = require("./decisionTrace");
-const ExplainabilityEngine = require("./explainabilityEngine");
-
-const {
-  saveDecision,
-  updateEngineStats,
-  detectPatterns
-} = require("./decisionLearning");
-
-const calibrateConfidence = require("./confidenceLearner");
-const adjustAction = require("./finalDecisionAdjuster");
-
-function detectGroup(engineName = "") {
-  const name = engineName.toLowerCase();
-  if (name.includes("creative")) return "CREATIVE";
-  if (name.includes("budget")) return "BUDGET";
-  if (name.includes("audience")) return "AUDIENCE";
-  if (name.includes("risk")) return "RISK";
-  if (name.includes("scale")) return "SCALING";
-  return "GENERAL";
-}
-
-function mapSeverity(status) {
-  if (status === "FAIL") return "HIGH";
-  if (status === "WARNING") return "MEDIUM";
-  return "LOW";
-}
-
 class DecisionOrchestrator {
-  constructor(engines = []) {
-    this.engines = engines;
+  constructor(engines, options = {}) {
+    this.engines = engines || [];
+    this.weights = options.weights || {
+      fraud: 1.5,
+      budget: 1.2,
+      performance: 1.0,
+      creative: 0.8,
+      generic: 1.0,
+    };
   }
 
-  async run(payload = {}) {
-    const decisionEngine = new DecisionEngine();
-    const collected = [];
+  _engineWeight(engine) {
+    return this.weights[engine.type] || this.weights.generic;
+  }
 
-    /** 1. Run engines safely */
-    for (const Engine of this.engines) {
+  async run({ metrics, context }) {
+    const results = [];
+    for (const engine of this.engines) {
       try {
-        const instance =
-          typeof Engine === "function" ? new Engine(payload) : Engine;
-
-        if (!instance || typeof instance.run !== "function") continue;
-
-        const result = await instance.run();
-
-        collected.push(
-          engineResult({
-            engine: instance.constructor.name,
-            group: detectGroup(instance.constructor.name),
-            status: result.status || "PASS",
-            severity: mapSeverity(result.status || "PASS"),
-            score: result.score || 0,
-            risk: result.risk || 0,
-            confidence: result.confidence ?? 0.5,
-            message: result.message || ""
-          })
-        );
-      } catch (err) {
-        collected.push(
-          engineResult({
-            engine: Engine?.name || "UnknownEngine",
-            group: detectGroup(Engine?.name),
-            status: "FAIL",
-            severity: "HIGH",
-            score: 0,
-            risk: 1,
-            confidence: 0,
-            message: err.message || "Engine crashed"
-          })
-        );
+        const out = await engine.run({ metrics, context });
+        results.push({
+          name: engine.name,
+          type: engine.type || "generic",
+          action: out.action, // RUN | PAUSE | KILL
+          risk: Number(out.risk || 0), // 0..1
+          reasons: out.reasons || [],
+          suggestions: out.suggestions || [],
+          weight: this._engineWeight(engine),
+        });
+      } catch (e) {
+        results.push({
+          name: engine.name,
+          type: engine.type || "generic",
+          action: "PAUSE",
+          risk: 0.5,
+          reasons: ["Engine error → conservative pause"],
+          suggestions: [],
+          weight: this._engineWeight(engine),
+        });
       }
     }
 
-    /** 2. Resolve decision */
-    collected.forEach(r => decisionEngine.register(r));
-    const decision = decisionEngine.resolve();
+    // ---- B2: CONSENSUS (Voting + Risk Override)
+    let score = { RUN: 0, PAUSE: 0, KILL: 0 };
+    let maxRisk = 0;
 
-    /** 3. Metrics */
-    const total = collected.length || 1;
-    const failCount = collected.filter(r => r.status === "FAIL").length;
-    const failRatio = failCount / total;
-
-    /** 4. Learning */
-    const learnedConfidence = calibrateConfidence(
-      decision.confidence || 0,
-      total,
-      failRatio
-    );
-
-    const finalAction = adjustAction(
-      decision.action,
-      learnedConfidence,
-      failRatio
-    );
-
-    /** 5. Final status */
-    const finalStatus =
-      finalAction === "KILL"
-        ? "FAIL"
-        : finalAction === "PAUSE"
-        ? "WARNING"
-        : "PASS";
-
-    /** 6. Async learning (non-blocking) */
-    try {
-      if (payload.context?.userId) {
-        saveDecision(
-          payload.context.userId,
-          {
-            action: finalAction,
-            score: decision.score || 0,
-            risk: decision.risk || 0,
-            confidence: learnedConfidence,
-            finalStatus
-          },
-          { failCount, total }
-        );
-
-        updateEngineStats(collected);
-        detectPatterns(payload.context.userId, { action: finalAction });
+    for (const r of results) {
+      score[r.action] += r.weight;
+      maxRisk = Math.max(maxRisk, r.risk);
+      // High-risk override
+      if (r.risk >= 0.85 && r.action === "KILL") {
+        return this._finalize("KILL", results, maxRisk, true);
       }
-    } catch (e) {
-      console.error("Learning layer error:", e.message);
     }
 
-    /** 7. Trace + Explainability */
-    const trace = buildDecisionTrace(collected, finalAction, learnedConfidence);
+    const action =
+      score.KILL >= score.RUN && score.KILL >= score.PAUSE
+        ? "KILL"
+        : score.PAUSE >= score.RUN
+        ? "PAUSE"
+        : "RUN";
 
-    const explainability = new ExplainabilityEngine(payload.context || {});
-    const explanation = explainability.run(
-      { ...decision, action: finalAction, confidence: learnedConfidence },
-      trace
-    );
+    // ---- B3: CONFIDENCE
+    const total = score.RUN + score.PAUSE + score.KILL || 1;
+    const confidence = Number((Math.max(score.RUN, score.PAUSE, score.KILL) / total).toFixed(2));
 
-    /** 8. Final response */
+    return this._finalize(action, results, maxRisk, false, confidence);
+  }
+
+  _finalize(action, results, maxRisk, overridden, confidence = 0.5) {
     return {
-      action: finalAction,
-      score: decision.score || 0,
-      risk: decision.risk || 0,
-      confidence: learnedConfidence,
-      reasons: decision.reasons || [],
-      explanation,
-      trace,
-      meta: {
-        enginesRun: total,
-        enginesFailed: failCount,
-        failRatio
-      }
+      action,
+      confidence,
+      risk: Number(maxRisk.toFixed(2)),
+      overridden,
+      trace: results,
     };
   }
 }
