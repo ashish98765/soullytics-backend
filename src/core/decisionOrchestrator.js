@@ -7,20 +7,25 @@ class DecisionOrchestrator {
 
   async run({ metrics, context }) {
     const trace = [];
-    let risk = 0;
-    let confidence = 0;
+    let totalRisk = 0;
+    let totalConfidence = 0;
 
     try {
       for (const engine of this.engines) {
         const result = await engine.run(metrics, context);
-        trace.push(result);
 
-        risk += result.risk || 0;
-        confidence += result.confidence || 0;
+        trace.push({
+          engine: engine.name || "unknown",
+          ...result
+        });
+
+        totalRisk += result.risk ?? 0;
+        totalConfidence += result.confidence ?? 0;
       }
 
-      const avgRisk = risk / this.engines.length;
-      const avgConfidence = confidence / this.engines.length;
+      const engineCount = this.engines.length || 1;
+      const avgRisk = totalRisk / engineCount;
+      const avgConfidence = totalConfidence / engineCount;
 
       let action = "RUN";
       if (avgRisk > 0.7) action = "KILL";
@@ -30,12 +35,13 @@ class DecisionOrchestrator {
         action,
         confidence: Number(avgConfidence.toFixed(2)),
         risk: Number(avgRisk.toFixed(2)),
-        reasons: [],
-        trace,
+        explanation:
+          "Decision derived from multi-engine consensus with averaged risk and confidence.",
+        trace
       };
     } catch (err) {
       console.error("ORCHESTRATOR_FAIL:", err);
-      return safeDecision(err.message);
+      return safeDecision("ORCHESTRATOR_ERROR");
     }
   }
 }
