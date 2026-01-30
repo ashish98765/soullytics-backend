@@ -1,98 +1,49 @@
-/**
- * Decision Orchestrator
- * ---------------------
- * Ye file Soullytics ka MAIN BRAIN hai.
- * Yahin se:
- * - saare AdsCode engines call hote hain
- * - confidence + risk aggregate hota hai
- * - learning engine hook hota hai
- * - final decision banti hai (RUN / PAUSE / KILL / SCALE)
- */
+const safeDecision = require("../safeDecision");
+const adsCodeRegistry = require("../engines/adsCodeRegistry");
 
-const adsRegistry = require("../engines/adsRegistry");
-const { learn } = require("../intelligence/learningEngine");
-
-function decisionOrchestrator(input) {
-  const { metrics = {}, context = {} } = input;
-
-  const trace = [];
-  let confidenceSum = 0;
-  let riskSum = 0;
-  let executed = 0;
-
-  /* ============================
-     1. RUN ALL REGISTERED ENGINES
-  ============================ */
-  for (const engine of adsRegistry) {
-    try {
-      const result = engine(metrics, context);
-
-      trace.push({
-        engine: engine.name,
-        confidence: result.confidence,
-        risk: result.risk,
-        reason: result.reason || null
-      });
-
-      confidenceSum += result.confidence;
-      riskSum += result.risk;
-      executed++;
-    } catch (err) {
-      trace.push({
-        engine: engine.name,
-        error: err.message
-      });
-    }
+class DecisionOrchestrator {
+  constructor() {
+    this.engines = Object.values(adsCodeRegistry);
   }
 
-  /* ============================
-     2. AGGREGATION
-  ============================ */
-  const avgConfidence =
-    executed > 0 ? confidenceSum / executed : 0;
+  async run({ metrics, context }) {
+    let totalRisk = 0;
+    let totalConfidence = 0;
+    const trace = [];
 
-  const avgRisk =
-    executed > 0 ? riskSum / executed : 0;
+    try {
+      for (const engine of this.engines) {
+        const result = await engine.run(metrics, context);
+        trace.push(result);
 
-  /* ============================
-     3. DECISION LOGIC (INTERNAL)
-  ============================ */
-  let action = "RUN";
+        totalRisk += result.risk || 0;
+        totalConfidence += result.confidence || 0;
+      }
 
-  if (avgRisk > 0.75) action = "KILL";
-  else if (avgRisk > 0.55) action = "PAUSE";
-  else if (avgConfidence > 0.75 && avgRisk < 0.35)
-    action = "SCALE";
+      const avgRisk =
+        this.engines.length > 0 ? totalRisk / this.engines.length : 1;
 
-  /* ============================
-     4. CONFIDENCE CALIBRATION
-  ============================ */
-  const calibratedConfidence = Math.max(
-    0,
-    Math.min(1, avgConfidence - avgRisk * 0.3)
-  );
+      const avgConfidence =
+        this.engines.length > 0
+          ? totalConfidence / this.engines.length
+          : 0;
 
-  /* ============================
-     5. LEARNING HOOK
-  ============================ */
-  const learning = learn({
-    metrics,
-    decision: action,
-    outcome: context.outcome || null
-  });
+      let action = "RUN";
+      if (avgRisk > 0.7) action = "KILL";
+      else if (avgRisk > 0.4) action = "PAUSE";
 
-  /* ============================
-     6. FINAL RESPONSE (NO UI ACTIONS)
-  ============================ */
-  return {
-    decision: {
-      internal_action: action,
-      confidence: Number(calibratedConfidence.toFixed(2)),
-      risk: Number(avgRisk.toFixed(2))
-    },
-    learning,
-    trace
-  };
+      return {
+        action,
+        confidence: Number(avgConfidence.toFixed(2)),
+        risk: Number(avgRisk.toFixed(2)),
+        reasons: [],
+        trace,
+      };
+    } catch (err) {
+      console.error("ORCHESTRATOR FAILURE:", err);
+      return safeDecision(err.message);
+    }
+  }
 }
 
-module.exports = decisionOrchestrator;
+module.exports = DecisionOrchestrator;
