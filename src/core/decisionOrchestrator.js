@@ -1,77 +1,98 @@
-const safeDecision = require("../safeDecision");
-const { calibrateConfidence } = require("../intelligence/confidenceCalibrator");
-const { suppressFalsePositive } = require("../intelligence/falsePositiveGuard");
+/**
+ * Decision Orchestrator
+ * ---------------------
+ * Ye file Soullytics ka MAIN BRAIN hai.
+ * Yahin se:
+ * - saare AdsCode engines call hote hain
+ * - confidence + risk aggregate hota hai
+ * - learning engine hook hota hai
+ * - final decision banti hai (RUN / PAUSE / KILL / SCALE)
+ */
 
-class DecisionOrchestrator {
-  constructor(engines = []) {
-    this.engines = engines;
-  }
+const adsRegistry = require("../engines/adsRegistry");
+const { learn } = require("../intelligence/learningEngine");
 
-  async run({ metrics, context = {} }) {
-    const trace = [];
-    let riskSum = 0;
-    let confidenceSum = 0;
+function decisionOrchestrator(input) {
+  const { metrics = {}, context = {} } = input;
 
+  const trace = [];
+  let confidenceSum = 0;
+  let riskSum = 0;
+  let executed = 0;
+
+  /* ============================
+     1. RUN ALL REGISTERED ENGINES
+  ============================ */
+  for (const engine of adsRegistry) {
     try {
-      for (const engine of this.engines) {
-        const result = await engine.run(metrics, context);
+      const result = engine(metrics, context);
 
-        trace.push(result);
-
-        riskSum += result.risk || 0;
-        confidenceSum += result.confidence || 0;
-      }
-
-      const avgRisk = riskSum / this.engines.length;
-      const avgConfidence = confidenceSum / this.engines.length;
-
-      /* ============================
-         TEMPORAL / PATTERN SIGNAL
-      ============================ */
-      const temporal = context.temporal || null;
-      const pattern = context.pattern || null;
-
-      /* ============================
-         FALSE POSITIVE GUARD
-      ============================ */
-      const suppression = suppressFalsePositive({
-        risk: avgRisk,
-        temporal
+      trace.push({
+        engine: engine.name,
+        confidence: result.confidence,
+        risk: result.risk,
+        reason: result.reason || null
       });
 
-      /* ============================
-         CONFIDENCE CALIBRATION
-      ============================ */
-      const calibratedConfidence = calibrateConfidence({
-        confidence: avgConfidence,
-        risk: avgRisk,
-        temporal
-      });
-
-      /* ============================
-         FINAL ACTION (INTERNAL ONLY)
-      ============================ */
-      let action = "RUN";
-
-      if (avgRisk > 0.7) action = "KILL";
-      else if (avgRisk > 0.4) action = "PAUSE";
-
-      return {
-        action, // INTERNAL — frontend ko dikhana zaroori nahi
-        confidence: calibratedConfidence,
-        raw_confidence: Number(avgConfidence.toFixed(2)),
-        risk: Number(avgRisk.toFixed(2)),
-        suppression,
-        temporal,
-        pattern,
-        trace
-      };
-
+      confidenceSum += result.confidence;
+      riskSum += result.risk;
+      executed++;
     } catch (err) {
-      console.error("DECISION ORCHESTRATOR FAILED:", err);
-      return safeDecision(err.message);
+      trace.push({
+        engine: engine.name,
+        error: err.message
+      });
     }
   }
+
+  /* ============================
+     2. AGGREGATION
+  ============================ */
+  const avgConfidence =
+    executed > 0 ? confidenceSum / executed : 0;
+
+  const avgRisk =
+    executed > 0 ? riskSum / executed : 0;
+
+  /* ============================
+     3. DECISION LOGIC (INTERNAL)
+  ============================ */
+  let action = "RUN";
+
+  if (avgRisk > 0.75) action = "KILL";
+  else if (avgRisk > 0.55) action = "PAUSE";
+  else if (avgConfidence > 0.75 && avgRisk < 0.35)
+    action = "SCALE";
+
+  /* ============================
+     4. CONFIDENCE CALIBRATION
+  ============================ */
+  const calibratedConfidence = Math.max(
+    0,
+    Math.min(1, avgConfidence - avgRisk * 0.3)
+  );
+
+  /* ============================
+     5. LEARNING HOOK
+  ============================ */
+  const learning = learn({
+    metrics,
+    decision: action,
+    outcome: context.outcome || null
+  });
+
+  /* ============================
+     6. FINAL RESPONSE (NO UI ACTIONS)
+  ============================ */
+  return {
+    decision: {
+      internal_action: action,
+      confidence: Number(calibratedConfidence.toFixed(2)),
+      risk: Number(avgRisk.toFixed(2))
+    },
+    learning,
+    trace
+  };
 }
 
-module.exports = DecisionOrchestrator;
+module.exports = decisionOrchestrator;
