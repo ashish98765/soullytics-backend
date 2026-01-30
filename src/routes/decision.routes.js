@@ -12,23 +12,19 @@ const supabase = require("../config/supabaseClient");
 /**
  * POST /api/v1/decision
  */
-router.post("/", apiKeyAuth, async (req, res) => {
+router.post("/decision", apiKeyAuth, async (req, res) => {
   try {
     const { platform, metrics } = req.body;
     const { userId, plan } = req.apiUser;
 
-    /* 1️⃣ Usage / Monetization Guard */
     const usage = await checkUsage(userId, plan);
     if (!usage.allowed) {
       return res.status(402).json({
         success: false,
-        error: "USAGE_LIMIT_REACHED",
-        limit: usage.limit,
-        used: usage.used
+        error: "USAGE_LIMIT_REACHED"
       });
     }
 
-    /* 2️⃣ Data sanity check */
     const sanity = dataSanityGuard(metrics);
     if (!sanity.ok) {
       return res.status(400).json({
@@ -38,17 +34,14 @@ router.post("/", apiKeyAuth, async (req, res) => {
       });
     }
 
-    /* 3️⃣ Load engines */
     const engines = Object.values(adsCodeRegistry);
     const orchestrator = new DecisionOrchestrator(engines);
 
-    /* 4️⃣ Run decision */
     const decision = await orchestrator.run({
       metrics,
       context: { userId, plan, platform }
     });
 
-    /* 5️⃣ Persist decision */
     await supabase.from("decisions").insert({
       user_id: userId,
       platform,
@@ -58,17 +51,16 @@ router.post("/", apiKeyAuth, async (req, res) => {
       trace: decision.trace
     });
 
-    /* 6️⃣ Intelligence / plan gate */
-    const gatedResponse = intelligenceGate(decision, plan);
+    const gated = intelligenceGate(decision, plan);
 
-    return res.json({
+    res.json({
       success: true,
-      data: gatedResponse
+      data: gated
     });
 
   } catch (err) {
     console.error("DECISION_ROUTE_ERROR:", err);
-    return res.status(500).json({
+    res.status(500).json({
       success: false,
       error: "DECISION_FAILED"
     });
