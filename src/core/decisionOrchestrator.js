@@ -1,32 +1,26 @@
-const safeDecision = require("../safeDecision");
-const adsCodeRegistry = require("../engines/adsCodeRegistry");
+const safeDecision = require("./safeDecision");
 
 class DecisionOrchestrator {
-  constructor() {
-    this.engines = Object.values(adsCodeRegistry);
+  constructor(engines = []) {
+    this.engines = engines;
   }
 
   async run({ metrics, context }) {
-    let totalRisk = 0;
-    let totalConfidence = 0;
     const trace = [];
+    let risk = 0;
+    let confidence = 0;
 
     try {
       for (const engine of this.engines) {
         const result = await engine.run(metrics, context);
         trace.push(result);
 
-        totalRisk += result.risk || 0;
-        totalConfidence += result.confidence || 0;
+        risk += result.risk || 0;
+        confidence += result.confidence || 0;
       }
 
-      const avgRisk =
-        this.engines.length > 0 ? totalRisk / this.engines.length : 1;
-
-      const avgConfidence =
-        this.engines.length > 0
-          ? totalConfidence / this.engines.length
-          : 0;
+      const avgRisk = risk / this.engines.length;
+      const avgConfidence = confidence / this.engines.length;
 
       let action = "RUN";
       if (avgRisk > 0.7) action = "KILL";
@@ -40,7 +34,7 @@ class DecisionOrchestrator {
         trace,
       };
     } catch (err) {
-      console.error("ORCHESTRATOR FAILURE:", err);
+      console.error("ORCHESTRATOR_FAIL:", err);
       return safeDecision(err.message);
     }
   }
