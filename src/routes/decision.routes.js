@@ -1,3 +1,4 @@
+console.log("🔥 decision.routes.js LOADED");
 const express = require("express");
 const router = express.Router();
 
