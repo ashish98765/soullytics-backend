@@ -1,61 +1,36 @@
-/**
- * Ads Engine Registry
- * -------------------
- * Dynamically loads all ad decision engines
- * and exposes them in a clean registry.
- *
- * Supports:
- * 1. module.exports = function engine()
- * 2. module.exports = { engineName: function }
- */
-
 const fs = require("fs");
 const path = require("path");
+const supabase = require("../config/supabaseClient");
 
-const registry = {};
-
-function loadAdsEngines() {
+async function loadAdsCodes() {
+  const registry = {};
   const enginesDir = __dirname;
   const files = fs.readdirSync(enginesDir);
 
-  files.forEach((file) => {
-    // ignore registry file itself
-    if (file === "adsCodeRegistry.js") return;
-    if (!file.endsWith(".js")) return;
+  for (const file of files) {
+    if (!file.startsWith("adsCode") || !file.endsWith(".js")) continue;
 
-    const enginePath = path.join(enginesDir, file);
+    const engineName = file.replace(".js", "");
 
-    try {
-      const imported = require(enginePath);
-      const engineKey = file.replace(".js", "");
+    const { data } = await supabase
+      .from("engine_scores")
+      .select("disabled")
+      .eq("engine_name", engineName)
+      .single();
 
-      // Case 1: module.exports = function
-      if (typeof imported === "function") {
-        registry[engineKey] = {
-          name: engineKey,
-          run: imported
-        };
-        return;
-      }
-
-      // Case 2: module.exports = { engineName: fn }
-      if (typeof imported === "object" && imported !== null) {
-        const fnKey = Object.keys(imported)[0];
-
-        registry[engineKey] = {
-          name: engineKey,
-          run: imported[fnKey]
-        };
-        return;
-      }
-
-      throw new Error("Invalid engine export format");
-    } catch (err) {
-      console.error(`❌ Engine ${file} skipped: ${err.message}`);
+    if (data?.disabled) {
+      console.log(`⛔ Engine disabled: ${engineName}`);
+      continue;
     }
-  });
+
+    const imported = require(path.join(enginesDir, file));
+    registry[engineName] =
+      typeof imported === "function"
+        ? imported
+        : imported[Object.keys(imported)[0]];
+  }
 
   return registry;
 }
 
-module.exports = loadAdsEngines();
+module.exports = loadAdsCodes();
