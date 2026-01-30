@@ -1,4 +1,5 @@
 // src/engines/adsCodeRegistry.js
+
 const fs = require("fs");
 const path = require("path");
 
@@ -17,23 +18,22 @@ function loadAdsCodes() {
     try {
       const imported = require(fullPath);
 
-      // ✅ CASE 1: module.exports = function(context){}
+      // Case 1: module.exports = function
       if (typeof imported === "function") {
         registry[file.replace(".js", "")] = imported;
         return;
       }
 
-      // ✅ CASE 2: module.exports = { SomeEngine }
-      if (typeof imported === "object") {
-        const exportedKey = Object.keys(imported)[0];
-        registry[file.replace(".js", "")] = imported[exportedKey];
+      // Case 2: module.exports = { engineName: fn }
+      if (typeof imported === "object" && imported !== null) {
+        const key = Object.keys(imported)[0];
+        registry[file.replace(".js", "")] = imported[key];
         return;
       }
 
-      throw new Error("Invalid engine export type");
-
+      throw new Error("Invalid engine export");
     } catch (err) {
-      console.error(`❌ ${file} skipped: ${err.message}`);
+      console.error(`❌ Engine ${file} skipped: ${err.message}`);
     }
   });
 
