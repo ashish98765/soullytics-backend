@@ -1,23 +1,15 @@
 const supabase = require("../config/supabaseClient");
 
-async function saveDecision({
-  userId,
-  platform,
-  confidence,
-  risk,
-  explanation,
-  metrics,
-  pattern
-}) {
+async function saveDecision({ userId, platform, result, metrics }) {
   await supabase.from("decisions").insert({
     user_id: userId,
     platform,
-    confidence,
-    risk,
-    reasons: explanation,
+    confidence: result.confidence,
+    risk: result.risk,
+    reasons: result.reasons,
     trace: {
       metrics,
-      pattern
+      pattern: result.pattern
     }
   });
 }
