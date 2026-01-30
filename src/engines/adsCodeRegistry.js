@@ -1,37 +1,55 @@
-// src/engines/adsCodeRegistry.js
+/**
+ * Ads Engine Registry
+ * -------------------
+ * Dynamically loads all ad decision engines
+ * and exposes them in a clean registry.
+ *
+ * Supports:
+ * 1. module.exports = function engine()
+ * 2. module.exports = { engineName: function }
+ */
 
 const fs = require("fs");
 const path = require("path");
 
 const registry = {};
 
-function loadAdsCodes() {
+function loadAdsEngines() {
   const enginesDir = __dirname;
   const files = fs.readdirSync(enginesDir);
 
   files.forEach((file) => {
-    if (!file.startsWith("adsCode")) return;
+    // ignore registry file itself
+    if (file === "adsCodeRegistry.js") return;
     if (!file.endsWith(".js")) return;
 
-    const fullPath = path.join(enginesDir, file);
+    const enginePath = path.join(enginesDir, file);
 
     try {
-      const imported = require(fullPath);
+      const imported = require(enginePath);
+      const engineKey = file.replace(".js", "");
 
       // Case 1: module.exports = function
       if (typeof imported === "function") {
-        registry[file.replace(".js", "")] = imported;
+        registry[engineKey] = {
+          name: engineKey,
+          run: imported
+        };
         return;
       }
 
       // Case 2: module.exports = { engineName: fn }
       if (typeof imported === "object" && imported !== null) {
-        const key = Object.keys(imported)[0];
-        registry[file.replace(".js", "")] = imported[key];
+        const fnKey = Object.keys(imported)[0];
+
+        registry[engineKey] = {
+          name: engineKey,
+          run: imported[fnKey]
+        };
         return;
       }
 
-      throw new Error("Invalid engine export");
+      throw new Error("Invalid engine export format");
     } catch (err) {
       console.error(`❌ Engine ${file} skipped: ${err.message}`);
     }
@@ -40,4 +58,4 @@ function loadAdsCodes() {
   return registry;
 }
 
-module.exports = loadAdsCodes();
+module.exports = loadAdsEngines();
