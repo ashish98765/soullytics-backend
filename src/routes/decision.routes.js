@@ -5,7 +5,7 @@ const router = express.Router();
 const DecisionOrchestrator = require("../core/decisionOrchestrator");
 const adsCodeRegistry = require("../engines/adsCodeRegistry");
 
-/* Middlewares */
+/* Middleware */
 const apiKeyAuth = require("../middlewares/apiKeyAuth");
 
 /* Guards */
@@ -23,6 +23,7 @@ const supabase = require("../config/supabaseClient");
  */
 router.post("/decision", apiKeyAuth, async (req, res) => {
   try {
+    /* Kill Switch */
     if (process.env.SOULLYTICS_DISABLED === "true") {
       return res.status(503).json({
         success: false,
@@ -98,7 +99,7 @@ router.post("/decision", apiKeyAuth, async (req, res) => {
       },
     });
   } catch (err) {
-    console.error("DECISION API ERROR:", err);
+    console.error("DECISION_API_ERROR:", err);
     return res.status(500).json({
       success: false,
       error: "DECISION_FAILED",
