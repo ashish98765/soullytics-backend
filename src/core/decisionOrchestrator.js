@@ -1,4 +1,7 @@
 const safeDecision = require("./safeDecision");
+const { detectPattern } = require("../intelligence/patternBuckets");
+const { interpret } = require("../intelligence/interpretation");
+const { saveDecision } = require("../intelligence/decisionMemory");
 
 class DecisionOrchestrator {
   constructor(engines = []) {
@@ -12,7 +15,7 @@ class DecisionOrchestrator {
 
     try {
       for (const engine of this.engines) {
-        const result = await engine.run({ metrics, context });
+        const result = await engine.run(metrics, context);
         trace.push(result);
 
         risk += result.risk || 0;
@@ -22,17 +25,25 @@ class DecisionOrchestrator {
       const avgRisk = risk / this.engines.length;
       const avgConfidence = confidence / this.engines.length;
 
-      let action = "RUN";
-      if (avgRisk > 0.7) action = "KILL";
-      else if (avgRisk > 0.4) action = "PAUSE";
+      const pattern = detectPattern(metrics);
+      const explanation = interpret(avgRisk, avgConfidence, pattern);
 
-      return {
-        action,
+      const finalResult = {
         confidence: Number(avgConfidence.toFixed(2)),
         risk: Number(avgRisk.toFixed(2)),
-        reasons: [],
-        trace,
+        reasons: explanation,
+        pattern,
+        trace
       };
+
+      await saveDecision({
+        userId: context.userId,
+        platform: context.platform,
+        result: finalResult,
+        metrics
+      });
+
+      return finalResult;
     } catch (err) {
       console.error("ORCHESTRATOR FAIL:", err);
       return safeDecision(err.message);
