@@ -1,64 +1,74 @@
-const safeDecision = require("./safeDecision");
-const { detectPattern } = require("../intelligence/patternBuckets");
-const { interpret } = require("../intelligence/interpretation");
-const { saveDecision } = require("../intelligence/decisionMemory");
-const { analyzeTemporal } = require("../intelligence/temporalAnalysis");
-const { getLastDecision } = require("../intelligence/historyFetcher");
+const safeDecision = require("../safeDecision");
+const { calibrateConfidence } = require("../intelligence/confidenceCalibrator");
+const { suppressFalsePositive } = require("../intelligence/falsePositiveGuard");
 
 class DecisionOrchestrator {
   constructor(engines = []) {
     this.engines = engines;
   }
 
-  async run({ metrics, context }) {
+  async run({ metrics, context = {} }) {
     const trace = [];
-    let risk = 0;
-    let confidence = 0;
+    let riskSum = 0;
+    let confidenceSum = 0;
 
     try {
       for (const engine of this.engines) {
         const result = await engine.run(metrics, context);
+
         trace.push(result);
 
-        risk += result.risk || 0;
-        confidence += result.confidence || 0;
+        riskSum += result.risk || 0;
+        confidenceSum += result.confidence || 0;
       }
 
-      const avgRisk = risk / this.engines.length;
-      const avgConfidence = confidence / this.engines.length;
+      const avgRisk = riskSum / this.engines.length;
+      const avgConfidence = confidenceSum / this.engines.length;
 
-      const pattern = detectPattern(metrics);
-      const explanation = interpret(avgRisk, avgConfidence, pattern);
+      /* ============================
+         TEMPORAL / PATTERN SIGNAL
+      ============================ */
+      const temporal = context.temporal || null;
+      const pattern = context.pattern || null;
 
-      const previous = await getLastDecision(
-        context.userId,
-        context.platform
-      );
-
-      const temporal = analyzeTemporal(previous, {
+      /* ============================
+         FALSE POSITIVE GUARD
+      ============================ */
+      const suppression = suppressFalsePositive({
         risk: avgRisk,
-        confidence: avgConfidence
+        temporal
       });
 
-      const finalResult = {
-        confidence: Number(avgConfidence.toFixed(2)),
+      /* ============================
+         CONFIDENCE CALIBRATION
+      ============================ */
+      const calibratedConfidence = calibrateConfidence({
+        confidence: avgConfidence,
+        risk: avgRisk,
+        temporal
+      });
+
+      /* ============================
+         FINAL ACTION (INTERNAL ONLY)
+      ============================ */
+      let action = "RUN";
+
+      if (avgRisk > 0.7) action = "KILL";
+      else if (avgRisk > 0.4) action = "PAUSE";
+
+      return {
+        action, // INTERNAL — frontend ko dikhana zaroori nahi
+        confidence: calibratedConfidence,
+        raw_confidence: Number(avgConfidence.toFixed(2)),
         risk: Number(avgRisk.toFixed(2)),
-        reasons: explanation,
-        pattern,
+        suppression,
         temporal,
+        pattern,
         trace
       };
 
-      await saveDecision({
-        userId: context.userId,
-        platform: context.platform,
-        result: finalResult,
-        metrics
-      });
-
-      return finalResult;
     } catch (err) {
-      console.error("ORCHESTRATOR FAIL:", err);
+      console.error("DECISION ORCHESTRATOR FAILED:", err);
       return safeDecision(err.message);
     }
   }
