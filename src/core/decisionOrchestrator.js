@@ -2,6 +2,8 @@ const safeDecision = require("./safeDecision");
 const { detectPattern } = require("../intelligence/patternBuckets");
 const { interpret } = require("../intelligence/interpretation");
 const { saveDecision } = require("../intelligence/decisionMemory");
+const { analyzeTemporal } = require("../intelligence/temporalAnalysis");
+const { getLastDecision } = require("../intelligence/historyFetcher");
 
 class DecisionOrchestrator {
   constructor(engines = []) {
@@ -28,11 +30,22 @@ class DecisionOrchestrator {
       const pattern = detectPattern(metrics);
       const explanation = interpret(avgRisk, avgConfidence, pattern);
 
+      const previous = await getLastDecision(
+        context.userId,
+        context.platform
+      );
+
+      const temporal = analyzeTemporal(previous, {
+        risk: avgRisk,
+        confidence: avgConfidence
+      });
+
       const finalResult = {
         confidence: Number(avgConfidence.toFixed(2)),
         risk: Number(avgRisk.toFixed(2)),
         reasons: explanation,
         pattern,
+        temporal,
         trace
       };
 
