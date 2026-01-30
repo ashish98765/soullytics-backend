@@ -1,5 +1,12 @@
 const supabase = require("../config/supabaseClient");
 
+/**
+ * API Key Authentication Middleware
+ * Supports:
+ *  - x-api-key
+ *  - Authorization: Bearer <key>
+ */
+
 async function apiKeyAuth(req, res, next) {
   try {
     const apiKey =
@@ -9,7 +16,7 @@ async function apiKeyAuth(req, res, next) {
     if (!apiKey) {
       return res.status(401).json({
         success: false,
-        error: "API_KEY_MISSING",
+        error: "API_KEY_MISSING"
       });
     }
 
@@ -23,22 +30,22 @@ async function apiKeyAuth(req, res, next) {
     if (error || !keyRow) {
       return res.status(401).json({
         success: false,
-        error: "INVALID_API_KEY",
+        error: "INVALID_API_KEY"
       });
     }
 
     req.apiUser = {
       userId: keyRow.user_id,
-      plan: keyRow.plan,
-      apiKeyId: keyRow.id,
+      plan: keyRow.plan || "starter",
+      apiKeyId: keyRow.id
     };
 
     next();
   } catch (err) {
-    console.error("API KEY AUTH ERROR:", err);
+    console.error("API_KEY_AUTH_ERROR:", err);
     return res.status(500).json({
       success: false,
-      error: "AUTH_FAILED",
+      error: "AUTH_FAILED"
     });
   }
 }
