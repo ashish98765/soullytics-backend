@@ -1,18 +1,15 @@
 const express = require("express");
-const router = express.Router();
+const app = express();
 
-console.log("🔥 DECISION ROUTES LOADED");
+console.log("🔥 INDEX.JS LOADED");
 
-/* =========================
-   TEST ROUTE
-========================= */
-router.post("/test", (req, res) => {
-  console.log("✅ /api/v1/test HIT");
-  res.json({
-    success: true,
-    message: "Decision test route working",
-    body: req.body
-  });
+app.use(express.json());
+
+const decisionRoutes = require("./src/routes/decision.routes");
+
+app.use("/api/v1", decisionRoutes);
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`🚀 Server running on port ${PORT}`);
 });
-
-module.exports = router;
