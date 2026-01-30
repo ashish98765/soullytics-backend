@@ -1,32 +1,43 @@
 const supabase = require("../config/supabaseClient");
 
+/**
+ * Learning system:
+ * SUCCESS  → engine rewarded
+ * FAIL     → engine punished
+ */
 async function updateEngineScores(engines = [], resultStatus) {
-  for (const e of engines) {
-    const { data, error } = await supabase
+  if (!engines.length) return;
+
+  for (const engine of engines) {
+    const engineName =
+      typeof engine === "string" ? engine : engine.name;
+
+    // Fetch existing row
+    const { data: existing } = await supabase
       .from("engine_scores")
       .select("*")
-      .eq("engine_name", e.engine)
+      .eq("engine_name", engineName)
       .single();
 
-    let total = 1, wins = 0, losses = 0;
+    let score = existing?.score || 0;
+    let success = existing?.success_count || 0;
+    let fail = existing?.fail_count || 0;
 
-    if (data) {
-      total = data.total_runs + 1;
-      wins = data.wins;
-      losses = data.losses;
+    // Learning logic
+    if (resultStatus === "SUCCESS") {
+      score += 1;
+      success += 1;
+    } else if (resultStatus === "FAIL") {
+      score -= 1;
+      fail += 1;
     }
 
-    if (resultStatus === "WIN") wins++;
-    if (resultStatus === "LOSS") losses++;
-
-    const accuracy = wins / total;
-
     await supabase.from("engine_scores").upsert({
-      engine_name: e.engine,
-      total_runs: total,
-      wins,
-      losses,
-      accuracy
+      engine_name: engineName,
+      score,
+      success_count: success,
+      fail_count: fail,
+      last_updated: new Date().toISOString()
     });
   }
 }
