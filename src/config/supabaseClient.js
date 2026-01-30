@@ -1,12 +1,21 @@
 const { createClient } = require("@supabase/supabase-js");
 
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_ANON_KEY;
+/**
+ * Supabase server-side client
+ * Uses SERVICE ROLE KEY (never expose to frontend)
+ */
 
-if (!supabaseUrl || !supabaseKey) {
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+if (!supabaseUrl || !supabaseServiceKey) {
   throw new Error("Supabase env variables missing");
 }
 
-const supabase = createClient(supabaseUrl, supabaseKey);
+const supabase = createClient(supabaseUrl, supabaseServiceKey, {
+  auth: {
+    persistSession: false,
+  },
+});
 
 module.exports = supabase;
