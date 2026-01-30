@@ -1,47 +1,34 @@
 const express = require("express");
 const router = express.Router();
 
-const DecisionOrchestrator = require("../core/decisionOrchestrator");
-const adsCodeRegistry = require("../engines/adsCodeRegistry");
 const apiKeyAuth = require("../middlewares/apiKeyAuth");
 const checkUsage = require("../core/usageGuard");
-const dataIntakeController = require("../data/dataIntake.controller");
+const intelligenceGate = require("../core/intelligenceGate");
+const DecisionOrchestrator = require("../core/decisionOrchestrator");
+const adsCodeRegistry = require("../engines/adsCodeRegistry");
 const dataSanityGuard = require("../core/dataSanityGuard");
 const supabase = require("../config/supabaseClient");
 
 router.post("/decision", apiKeyAuth, async (req, res) => {
   try {
-    const { platform, raw } = req.body;
+    const { platform, metrics } = req.body;
     const { userId, plan } = req.apiUser;
-
-    if (!platform || !raw) {
-      return res.status(400).json({ success: false, error: "MISSING_DATA" });
-    }
 
     const usage = await checkUsage(userId, plan);
     if (!usage.allowed) {
-      return res.status(402).json({ success: false, error: "LIMIT_EXCEEDED" });
+      return res.status(402).json({ error: usage.reason });
     }
 
-    const intake = dataIntakeController({ platform, raw });
-    if (!intake.ok) {
-      return res.status(400).json({ success: false, error: "INVALID_DATA" });
-    }
-
-    const sanity = dataSanityGuard(intake.metrics);
+    const sanity = dataSanityGuard(metrics);
     if (!sanity.ok) {
-      return res.status(400).json({
-        success: false,
-        error: "BAD_DATA_REJECTED",
-        reason: sanity.reason
-      });
+      return res.status(400).json({ error: "BAD_DATA" });
     }
 
     const engines = Object.values(await adsCodeRegistry);
     const orchestrator = new DecisionOrchestrator(engines);
 
     const decision = await orchestrator.run({
-      metrics: intake.metrics,
+      metrics,
       context: { userId, plan, platform }
     });
 
@@ -51,14 +38,15 @@ router.post("/decision", apiKeyAuth, async (req, res) => {
       action: decision.action,
       confidence: decision.confidence,
       risk: decision.risk,
-      trace: decision.trace,
-      created_at: new Date().toISOString()
+      trace: decision.trace
     });
 
-    res.json({ success: true, data: decision });
+    const gatedResponse = intelligenceGate(decision, plan);
+
+    res.json({ success: true, data: gatedResponse });
   } catch (err) {
-    console.error("DECISION_API_FAIL", err);
-    res.status(500).json({ success: false, error: "DECISION_FAILED" });
+    console.error(err);
+    res.status(500).json({ error: "DECISION_FAILED" });
   }
 });
 
